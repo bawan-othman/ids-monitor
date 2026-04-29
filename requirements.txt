@@ -5,3 +5,5 @@ flask-sqlalchemy
 werkzeug
 gunicorn
 eventlet
+pymysql
+cryptography

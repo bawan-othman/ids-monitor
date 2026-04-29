@@ -9,7 +9,8 @@ import os
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ids-secret-key-2026'
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///ids.db'
+import os
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///ids.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 CORS(app)
