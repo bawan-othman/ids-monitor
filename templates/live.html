@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+{% block title %}Live Traffic{% endblock %}
+
+{% block content %}
+<div class="page-title">Live Traffic</div>
+<div class="page-subtitle">Real-time packet monitoring and analysis</div>
+
+<!-- Stats -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Packets/sec</div>
+            <div class="stat-value" id="packetsPerSec">0</div>
+        </div>
+        <div class="stat-icon blue">⚡</div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Total Captured</div>
+            <div class="stat-value" id="totalCaptured">0</div>
+        </div>
+        <div class="stat-icon blue">📡</div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Malicious</div>
+            <div class="stat-value red" id="maliciousCount">0</div>
+        </div>
+        <div class="stat-icon red">🚨</div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Normal</div>
+            <div class="stat-value" id="normalCount">0</div>
+        </div>
+        <div class="stat-icon green">✅</div>
+    </div>
+</div>
+
+<!-- Live Table -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">📡 Live Packet Stream</span>
+        <div style="display:flex; gap:10px;">
+            <button class="btn btn-danger btn-sm" onclick="clearTable()">Clear</button>
+            <button class="btn btn-primary btn-sm" onclick="togglePause()" id="pauseBtn">⏸ Pause</button>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Time</th>
+                <th>Source IP</th>
+                <th>Destination IP</th>
+                <th>Protocol</th>
+                <th>Length</th>
+                <th>Prediction</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody id="liveTable">
+            <tr><td colspan="8" style="text-align:center; color:#64748b;">Waiting for packets...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    let paused   = false;
+    let counter  = 0;
+    let total    = 0;
+    let malicious = 0;
+    let normal   = 0;
+    let pps      = 0;
+    let ppsTimer = 0;
+
+    function togglePause() {
+        paused = !paused;
+        document.getElementById('pauseBtn').textContent = paused ? '▶ Resume' : '⏸ Pause';
+    }
+
+    function clearTable() {
+        document.getElementById('liveTable').innerHTML =
+            '<tr><td colspan="8" style="text-align:center; color:#64748b;">Waiting for packets...</td></tr>';
+        counter = 0;
+    }
+
+    // Live WebSocket updates
+    socket.on('new_packet', function(data) {
+        if (paused) return;
+
+        total++;
+        ppsTimer++;
+        if (data.label === 'MALICIOUS') malicious++;
+        else normal++;
+
+        document.getElementById('totalCaptured').textContent = total;
+        document.getElementById('maliciousCount').textContent = malicious;
+        document.getElementById('normalCount').textContent   = normal;
+
+        counter++;
+        const tbody = document.getElementById('liveTable');
+
+        // Remove waiting message
+        if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
+
+        const row = document.createElement('tr');
+        row.style.animation = 'fadeIn 0.3s ease';
+        row.innerHTML = `
+            <td style="color:#64748b">${counter}</td>
+            <td>${new Date().toLocaleTimeString()}</td>
+            <td>${data.src_ip || '-'}</td>
+            <td>${data.dst_ip || '-'}</td>
+            <td>${data.protocol || '-'}</td>
+            <td>${data.length || '-'}</td>
+            <td><span class="badge ${data.label === 'MALICIOUS' ? 'badge-red' : 'badge-green'}">${data.label}</span></td>
+            <td>${data.confidence ? (data.confidence * 100).toFixed(0) + '%' : '-'}</td>
+        `;
+
+        tbody.insertBefore(row, tbody.firstChild);
+
+        // Keep max 100 rows
+        while (tbody.children.length > 100) {
+            tbody.removeChild(tbody.lastChild);
+        }
+
+        // Highlight malicious rows
+        if (data.label === 'MALICIOUS') {
+            row.style.background = 'rgba(239,68,68,0.08)';
+        }
+    });
+
+    // Packets per second counter
+    setInterval(() => {
+        document.getElementById('packetsPerSec').textContent = ppsTimer;
+        ppsTimer = 0;
+    }, 1000);
+</script>
+
+{% block extra_styles %}
+<style>
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+{% endblock %}
+
+{% endblock %}

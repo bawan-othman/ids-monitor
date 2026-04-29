@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IDS Monitor - Login</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f1117;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-image: radial-gradient(ellipse at 20% 50%, #1a1d2e 0%, #0f1117 70%);
+        }
+        .login-container {
+            background: #1a1d2e;
+            border: 1px solid #2d3148;
+            border-radius: 16px;
+            padding: 40px;
+            width: 380px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+        }
+        .login-logo {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .logo-icon {
+            width: 60px;
+            height: 60px;
+            background: #4f8ef7;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin: 0 auto 16px;
+        }
+        .login-logo h1 {
+            font-size: 22px;
+            font-weight: 700;
+            color: #e2e8f0;
+            margin-bottom: 6px;
+        }
+        .login-logo p {
+            color: #64748b;
+            font-size: 13px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 13px;
+            color: #94a3b8;
+            margin-bottom: 8px;
+            font-weight: 500;
+        }
+        .form-group input {
+            width: 100%;
+            background: #0f1117;
+            border: 1px solid #2d3148;
+            border-radius: 8px;
+            padding: 12px 14px;
+            color: #e2e8f0;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .form-group input:focus {
+            border-color: #4f8ef7;
+        }
+        .form-footer {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 24px;
+        }
+        .remember-me {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #94a3b8;
+            cursor: pointer;
+        }
+        .forgot-link {
+            font-size: 13px;
+            color: #4f8ef7;
+            text-decoration: none;
+        }
+        .login-btn {
+            width: 100%;
+            background: #4f8ef7;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 13px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .login-btn:hover { background: #3b7de8; }
+        .login-btn:disabled { background: #2d3148; cursor: not-allowed; }
+        .error-msg {
+            background: #3d0808;
+            color: #ef4444;
+            border: 1px solid #ef4444;
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 13px;
+            margin-bottom: 16px;
+            display: none;
+        }
+        .page-footer {
+            text-align: center;
+            margin-top: 24px;
+            font-size: 11px;
+            color: #64748b;
+            line-height: 1.6;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-container">
+        <div class="login-logo">
+            <div class="logo-icon">🛡️</div>
+            <h1>Smart Network Traffic Monitoring</h1>
+            <p>IDS System - Secure Login Portal</p>
+        </div>
+
+        <div class="error-msg" id="errorMsg"></div>
+
+        <div class="form-group">
+            <label>Username</label>
+            <input type="text" id="username" placeholder="Enter your username">
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="password" placeholder="Enter your password">
+        </div>
+        <div class="form-footer">
+            <label class="remember-me">
+                <input type="checkbox"> Remember me
+            </label>
+            <a href="#" class="forgot-link">Forgot password?</a>
+        </div>
+
+        <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign in</button>
+
+        <div class="page-footer">
+            Final Year Project 2026 | Network Security & IDS Research<br>
+            Universiti Teknologi Malaysia (UTM)
+        </div>
+    </div>
+
+    <script>
+        // Allow Enter key to login
+        document.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') doLogin();
+        });
+
+        async function doLogin() {
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value.trim();
+            const btn      = document.getElementById('loginBtn');
+            const errorMsg = document.getElementById('errorMsg');
+
+            if (!username || !password) {
+                errorMsg.textContent = 'Please enter username and password';
+                errorMsg.style.display = 'block';
+                return;
+            }
+
+            btn.disabled    = true;
+            btn.textContent = 'Signing in...';
+            errorMsg.style.display = 'none';
+
+            try {
+                const response = await fetch('/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                const data = await response.json();
+
+                if (data.success) {
+                    window.location.href = '/dashboard';
+                } else {
+                    errorMsg.textContent   = data.message || 'Invalid credentials';
+                    errorMsg.style.display = 'block';
+                    btn.disabled    = false;
+                    btn.textContent = 'Sign in';
+                }
+            } catch (err) {
+                errorMsg.textContent   = 'Connection error. Please try again.';
+                errorMsg.style.display = 'block';
+                btn.disabled    = false;
+                btn.textContent = 'Sign in';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Alerts{% endblock %}
+
+{% block content %}
+<div class="page-title">Alert Management</div>
+<div class="page-subtitle">Manage and track security alerts and incidents</div>
+
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Alert Management</span>
+        <div style="display:flex; gap:10px;">
+            <select id="filterSeverity" class="search-bar" style="width:150px" onchange="loadAlerts()">
+                <option value="">All Severities</option>
+                <option value="high">High</option>
+                <option value="medium">Medium</option>
+                <option value="low">Low</option>
+            </select>
+            <select id="filterStatus" class="search-bar" style="width:150px" onchange="loadAlerts()">
+                <option value="">All Statuses</option>
+                <option value="new">New</option>
+                <option value="acknowledged">Acknowledged</option>
+                <option value="resolved">Resolved</option>
+            </select>
+        </div>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Created</th>
+                <th>Severity</th>
+                <th>Status</th>
+                <th>Alert Title</th>
+                <th>Description</th>
+                <th>Log ID</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody id="alertsTable">
+            <tr><td colspan="7" style="text-align:center; color:#64748b;">No alerts yet...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    async function loadAlerts() {
+        const res    = await fetch('/api/alerts');
+        const alerts = await res.json();
+        const severity = document.getElementById('filterSeverity').value;
+        const status   = document.getElementById('filterStatus').value;
+
+        let filtered = alerts;
+        if (severity) filtered = filtered.filter(a => a.severity === severity);
+        if (status)   filtered = filtered.filter(a => a.status === status);
+
+        const tbody = document.getElementById('alertsTable');
+        if (filtered.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b;">No alerts found...</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = filtered.map(a => `
+            <tr>
+                <td>${a.created_at}</td>
+                <td><span class="badge ${a.severity === 'high' ? 'badge-red' : a.severity === 'medium' ? 'badge-orange' : 'badge-gray'}">${a.severity}</span></td>
+                <td><span class="badge ${a.status === 'new' ? 'badge-red' : a.status === 'acknowledged' ? 'badge-orange' : 'badge-green'}">${a.status}</span></td>
+                <td>${a.title}</td>
+                <td style="color:#64748b; font-size:12px">${a.description}</td>
+                <td style="color:#64748b">#${a.log_id}</td>
+                <td>
+                    <button class="btn btn-primary btn-sm" onclick="acknowledge(${a.alert_id})">✓ Ack</button>
+                    <button class="btn btn-success btn-sm" onclick="resolve(${a.alert_id})">✓✓ Resolve</button>
+                </td>
+            </tr>
+        `).join('');
+    }
+
+    async function acknowledge(id) {
+        await fetch('/api/alerts/' + id + '/acknowledge', { method: 'POST' });
+        loadAlerts();
+    }
+
+    async function resolve(id) {
+        await fetch('/api/alerts/' + id + '/resolve', { method: 'POST' });
+        loadAlerts();
+    }
+
+    // Live update when new malicious packet arrives
+    socket.on('new_packet', function(data) {
+        if (data.label === 'MALICIOUS') {
+            setTimeout(loadAlerts, 500);
+        }
+    });
+
+    loadAlerts();
+    setInterval(loadAlerts, 15000);
+</script>
+{% endblock %}

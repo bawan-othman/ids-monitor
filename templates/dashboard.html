@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Overview{% endblock %}
+
+{% block content %}
+<div class="page-title">Overview Dashboard</div>
+<div class="page-subtitle">Real-time analytics and network traffic insights</div>
+
+<!-- Stats Cards -->
+<div class="stats-grid">
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Total Packets</div>
+            <div class="stat-value" id="totalPackets">0</div>
+        </div>
+        <div class="stat-icon blue">📡</div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Abnormal Packets</div>
+            <div class="stat-value red" id="maliciousPackets">0</div>
+        </div>
+        <div class="stat-icon orange">⚠️</div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">New Alerts</div>
+            <div class="stat-value red" id="newAlerts">0</div>
+        </div>
+        <div class="stat-icon red">🔔</div>
+    </div>
+    <div class="stat-card">
+        <div>
+            <div class="stat-label">Blocked IPs</div>
+            <div class="stat-value" id="blockedIPs">0</div>
+        </div>
+        <div class="stat-icon green">🛡️</div>
+    </div>
+</div>
+
+<!-- Charts Row 1 -->
+<div class="charts-grid">
+    <div class="chart-card">
+        <div class="chart-title">Normal vs Abnormal Traffic</div>
+        <canvas id="donutChart" height="200"></canvas>
+    </div>
+    <div class="chart-card">
+        <div class="chart-title">Traffic Trend (Last 20 Packets)</div>
+        <canvas id="trendChart" height="200"></canvas>
+    </div>
+</div>
+
+<!-- Recent Traffic Table -->
+<div class="card">
+    <div class="card-header">
+        <span class="card-title">Recent Traffic</span>
+        <a href="/live" class="btn btn-primary btn-sm">View All Live</a>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Time</th>
+                <th>Source IP</th>
+                <th>Destination IP</th>
+                <th>Protocol</th>
+                <th>Length</th>
+                <th>Prediction</th>
+                <th>Confidence</th>
+            </tr>
+        </thead>
+        <tbody id="recentTable">
+            <tr><td colspan="7" style="text-align:center; color:#64748b;">Waiting for traffic...</td></tr>
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // Stats
+    async function loadStats() {
+        const res  = await fetch('/api/stats');
+        const data = await res.json();
+        document.getElementById('totalPackets').textContent    = data.total_packets;
+        document.getElementById('maliciousPackets').textContent = data.malicious_packets;
+        document.getElementById('newAlerts').textContent       = data.new_alerts;
+        document.getElementById('blockedIPs').textContent      = data.blocked_ips;
+        donutChart.data.datasets[0].data = [
+            data.total_packets - data.malicious_packets,
+            data.malicious_packets
+        ];
+        donutChart.update();
+    }
+
+    // Recent logs
+    async function loadLogs() {
+        const res  = await fetch('/api/logs');
+        const logs = await res.json();
+        const tbody = document.getElementById('recentTable');
+        if (logs.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b;">Waiting for traffic...</td></tr>';
+            return;
+        }
+        tbody.innerHTML = logs.slice(0, 10).map(l => `
+            <tr>
+                <td>${l.captured_at}</td>
+                <td>${l.src_ip}</td>
+                <td>${l.dst_ip}</td>
+                <td>${l.protocol}</td>
+                <td>${l.length}</td>
+                <td><span class="badge ${l.prediction === 'MALICIOUS' ? 'badge-red' : 'badge-green'}">${l.prediction}</span></td>
+                <td>${(l.confidence * 100).toFixed(0)}%</td>
+            </tr>
+        `).join('');
+    }
+
+    // Donut Chart
+    const donutChart = new Chart(document.getElementById('donutChart'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Normal', 'Abnormal'],
+            datasets: [{ data: [0, 0], backgroundColor: ['#22c55e', '#ef4444'], borderWidth: 0 }]
+        },
+        options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } } }
+    });
+
+    // Trend Chart
+    const trendLabels = [];
+    const trendNormal = [];
+    const trendAbnormal = [];
+    const trendChart = new Chart(document.getElementById('trendChart'), {
+        type: 'line',
+        data: {
+            labels: trendLabels,
+            datasets: [
+                { label: 'Normal', data: trendNormal, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.4 },
+                { label: 'Abnormal', data: trendAbnormal, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: { legend: { labels: { color: '#94a3b8' } } },
+            scales: {
+                x: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' } },
+                y: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' } }
+            }
+        }
+    });
+
+    // Live updates via WebSocket
+    socket.on('new_packet', function(data) {
+        loadStats();
+        loadLogs();
+        // Update trend
+        const time = new Date().toLocaleTimeString();
+        trendLabels.push(time);
+        if (data.label === 'MALICIOUS') {
+            trendAbnormal.push((trendAbnormal[trendAbnormal.length-1] || 0) + 1);
+            trendNormal.push(trendNormal[trendNormal.length-1] || 0);
+        } else {
+            trendNormal.push((trendNormal[trendNormal.length-1] || 0) + 1);
+            trendAbnormal.push(trendAbnormal[trendAbnormal.length-1] || 0);
+        }
+        if (trendLabels.length > 20) {
+            trendLabels.shift(); trendNormal.shift(); trendAbnormal.shift();
+        }
+        trendChart.update();
+    });
+
+    // Load on start and refresh every 10 seconds
+    loadStats();
+    loadLogs();
+    setInterval(() => { loadStats(); loadLogs(); }, 10000);
+</script>
+{% endblock %}
