@@ -1,148 +1,146 @@
 {% extends "base.html" %}
 {% block title %}Live Traffic{% endblock %}
+{% block breadcrumb %}Live Traffic{% endblock %}
+
+{% block extra_head %}
+<style>
+@keyframes rowSlideIn {
+  from { opacity: 0; transform: translateX(-8px); background: rgba(0,212,255,0.06); }
+  to   { opacity: 1; transform: translateX(0);    background: transparent; }
+}
+.new-row td { animation: rowSlideIn 0.4s ease forwards; }
+.new-row.malicious-row td { animation: rowSlideIn 0.4s ease forwards; background: rgba(255,59,92,0.06) !important; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="page-title">Live Traffic</div>
-<div class="page-subtitle">Real-time packet monitoring and analysis</div>
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+  <div>
+    <div class="page-title">Live Traffic</div>
+    <div class="page-subtitle">Real-time packet stream with ML classification</div>
+  </div>
+  <div style="display:flex; gap:10px; align-items:center;">
+    <div class="live-indicator"><div class="pulse-dot"></div> CAPTURING</div>
+    <button class="btn btn-ghost btn-sm" onclick="togglePause()" id="pauseBtn">⏸ Pause</button>
+    <button class="btn btn-danger btn-sm" onclick="clearTable()">✕ Clear</button>
+  </div>
+</div>
 
-<!-- Stats -->
-<div class="stats-grid">
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Packets/sec</div>
-            <div class="stat-value" id="packetsPerSec">0</div>
-        </div>
-        <div class="stat-icon blue">⚡</div>
-    </div>
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Total Captured</div>
-            <div class="stat-value" id="totalCaptured">0</div>
-        </div>
-        <div class="stat-icon blue">📡</div>
-    </div>
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Malicious</div>
-            <div class="stat-value red" id="maliciousCount">0</div>
-        </div>
-        <div class="stat-icon red">🚨</div>
-    </div>
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Normal</div>
-            <div class="stat-value" id="normalCount">0</div>
-        </div>
-        <div class="stat-icon green">✅</div>
-    </div>
+<!-- Mini Stats -->
+<div class="stats-grid" style="grid-template-columns: repeat(4,1fr); margin-bottom:20px;">
+  <div class="stat-card info" style="padding:14px 16px;">
+    <div class="stat-label" style="margin-bottom:6px">Packets/sec</div>
+    <div class="stat-value cyan" style="font-size:22px" id="statPPS">0</div>
+  </div>
+  <div class="stat-card" style="padding:14px 16px;">
+    <div class="stat-label" style="margin-bottom:6px">Total Captured</div>
+    <div class="stat-value" style="font-size:22px" id="statTotal">0</div>
+  </div>
+  <div class="stat-card danger" style="padding:14px 16px;">
+    <div class="stat-label" style="margin-bottom:6px">Malicious</div>
+    <div class="stat-value red" style="font-size:22px" id="statMalicious">0</div>
+  </div>
+  <div class="stat-card success" style="padding:14px 16px;">
+    <div class="stat-label" style="margin-bottom:6px">Normal</div>
+    <div class="stat-value green" style="font-size:22px" id="statNormal">0</div>
+  </div>
 </div>
 
 <!-- Live Table -->
 <div class="card">
-    <div class="card-header">
-        <span class="card-title">📡 Live Packet Stream</span>
-        <div style="display:flex; gap:10px;">
-            <button class="btn btn-danger btn-sm" onclick="clearTable()">Clear</button>
-            <button class="btn btn-primary btn-sm" onclick="togglePause()" id="pauseBtn">⏸ Pause</button>
-        </div>
+  <div class="card-header">
+    <div class="card-title">Packet Stream</div>
+    <div class="card-actions">
+      <span style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted)">
+        MAX 200 ROWS
+      </span>
     </div>
+  </div>
+  <div style="overflow-x:auto; max-height:600px; overflow-y:auto;">
     <table>
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Time</th>
-                <th>Source IP</th>
-                <th>Destination IP</th>
-                <th>Protocol</th>
-                <th>Length</th>
-                <th>Prediction</th>
-                <th>Confidence</th>
-            </tr>
-        </thead>
-        <tbody id="liveTable">
-            <tr><td colspan="8" style="text-align:center; color:#64748b;">Waiting for packets...</td></tr>
-        </tbody>
+      <thead style="position:sticky; top:0; z-index:10;">
+        <tr>
+          <th>#</th>
+          <th>Time</th>
+          <th>Source IP</th>
+          <th>Destination</th>
+          <th>Protocol</th>
+          <th>Size</th>
+          <th>Classification</th>
+          <th>Confidence</th>
+        </tr>
+      </thead>
+      <tbody id="liveTable">
+        <tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">Waiting for packets from sensor...</div></div></td></tr>
+      </tbody>
     </table>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    let paused   = false;
-    let counter  = 0;
-    let total    = 0;
-    let malicious = 0;
-    let normal   = 0;
-    let pps      = 0;
-    let ppsTimer = 0;
+  let paused   = false;
+  let counter  = 0;
+  let total    = 0;
+  let mal      = 0;
+  let norm     = 0;
+  let ppsCount = 0;
 
-    function togglePause() {
-        paused = !paused;
-        document.getElementById('pauseBtn').textContent = paused ? '▶ Resume' : '⏸ Pause';
-    }
+  function togglePause() {
+    paused = !paused;
+    const btn = document.getElementById('pauseBtn');
+    btn.textContent = paused ? '▶ Resume' : '⏸ Pause';
+    btn.className   = paused ? 'btn btn-success btn-sm' : 'btn btn-ghost btn-sm';
+  }
 
-    function clearTable() {
-        document.getElementById('liveTable').innerHTML =
-            '<tr><td colspan="8" style="text-align:center; color:#64748b;">Waiting for packets...</td></tr>';
-        counter = 0;
-    }
+  function clearTable() {
+    document.getElementById('liveTable').innerHTML =
+      `<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">Cleared — waiting for packets...</div></div></td></tr>`;
+    counter = 0;
+  }
 
-    // Live WebSocket updates
-    socket.on('new_packet', function(data) {
-        if (paused) return;
+  socket.on('new_packet', data => {
+    if (paused) return;
+    ppsCount++;
+    total++;
+    if (data.label === 'MALICIOUS') mal++; else norm++;
 
-        total++;
-        ppsTimer++;
-        if (data.label === 'MALICIOUS') malicious++;
-        else normal++;
+    document.getElementById('statTotal').textContent    = fmt(total);
+    document.getElementById('statMalicious').textContent = fmt(mal);
+    document.getElementById('statNormal').textContent    = fmt(norm);
 
-        document.getElementById('totalCaptured').textContent = total;
-        document.getElementById('maliciousCount').textContent = malicious;
-        document.getElementById('normalCount').textContent   = normal;
+    counter++;
+    const tbody   = document.getElementById('liveTable');
+    if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
 
-        counter++;
-        const tbody = document.getElementById('liveTable');
+    const isMal   = data.label === 'MALICIOUS';
+    const row     = document.createElement('tr');
+    row.className = `new-row${isMal ? ' malicious-row' : ''}`;
+    row.innerHTML = `
+      <td class="mono" style="color:var(--text-muted)">${counter}</td>
+      <td class="mono" style="color:var(--text-muted)">${new Date().toLocaleTimeString('en-US',{hour12:false})}</td>
+      <td class="mono" style="color:${isMal ? 'var(--accent-red)' : 'var(--text-primary)'}">${data.src_ip || '—'}</td>
+      <td class="mono" style="color:var(--text-muted)">${data.dst_ip || '—'}</td>
+      <td>${data.protocol || '—'}</td>
+      <td class="mono" style="color:var(--text-muted)">${data.length || '—'} B</td>
+      <td>${isMal
+        ? '<span class="badge badge-red">⚠ Malicious</span>'
+        : '<span class="badge badge-green">✓ Normal</span>'}</td>
+      <td class="mono" style="color:var(--text-muted)">${data.confidence ? Math.round(data.confidence*100)+'%' : '—'}</td>
+    `;
 
-        // Remove waiting message
-        if (tbody.querySelector('td[colspan]')) tbody.innerHTML = '';
+    tbody.insertBefore(row, tbody.firstChild);
+    while (tbody.children.length > 200) tbody.removeChild(tbody.lastChild);
 
-        const row = document.createElement('tr');
-        row.style.animation = 'fadeIn 0.3s ease';
-        row.innerHTML = `
-            <td style="color:#64748b">${counter}</td>
-            <td>${new Date().toLocaleTimeString()}</td>
-            <td>${data.src_ip || '-'}</td>
-            <td>${data.dst_ip || '-'}</td>
-            <td>${data.protocol || '-'}</td>
-            <td>${data.length || '-'}</td>
-            <td><span class="badge ${data.label === 'MALICIOUS' ? 'badge-red' : 'badge-green'}">${data.label}</span></td>
-            <td>${data.confidence ? (data.confidence * 100).toFixed(0) + '%' : '-'}</td>
-        `;
+    // Remove animation class after it plays
+    setTimeout(() => row.classList.remove('new-row'), 500);
+  });
 
-        tbody.insertBefore(row, tbody.firstChild);
-
-        // Keep max 100 rows
-        while (tbody.children.length > 100) {
-            tbody.removeChild(tbody.lastChild);
-        }
-
-        // Highlight malicious rows
-        if (data.label === 'MALICIOUS') {
-            row.style.background = 'rgba(239,68,68,0.08)';
-        }
-    });
-
-    // Packets per second counter
-    setInterval(() => {
-        document.getElementById('packetsPerSec').textContent = ppsTimer;
-        ppsTimer = 0;
-    }, 1000);
+  // Packets per second
+  setInterval(() => {
+    document.getElementById('statPPS').textContent = ppsCount;
+    ppsCount = 0;
+  }, 1000);
 </script>
-
-{% block extra_styles %}
-<style>
-@keyframes fadeIn { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: translateY(0); } }
-</style>
-{% endblock %}
-
 {% endblock %}

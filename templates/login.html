@@ -1,207 +1,368 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>IDS Monitor - Login</title>
-    <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', sans-serif;
-            background: #0f1117;
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-image: radial-gradient(ellipse at 20% 50%, #1a1d2e 0%, #0f1117 70%);
-        }
-        .login-container {
-            background: #1a1d2e;
-            border: 1px solid #2d3148;
-            border-radius: 16px;
-            padding: 40px;
-            width: 380px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
-        }
-        .login-logo {
-            text-align: center;
-            margin-bottom: 30px;
-        }
-        .logo-icon {
-            width: 60px;
-            height: 60px;
-            background: #4f8ef7;
-            border-radius: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 28px;
-            margin: 0 auto 16px;
-        }
-        .login-logo h1 {
-            font-size: 22px;
-            font-weight: 700;
-            color: #e2e8f0;
-            margin-bottom: 6px;
-        }
-        .login-logo p {
-            color: #64748b;
-            font-size: 13px;
-        }
-        .form-group {
-            margin-bottom: 20px;
-        }
-        .form-group label {
-            display: block;
-            font-size: 13px;
-            color: #94a3b8;
-            margin-bottom: 8px;
-            font-weight: 500;
-        }
-        .form-group input {
-            width: 100%;
-            background: #0f1117;
-            border: 1px solid #2d3148;
-            border-radius: 8px;
-            padding: 12px 14px;
-            color: #e2e8f0;
-            font-size: 14px;
-            outline: none;
-            transition: border-color 0.2s;
-        }
-        .form-group input:focus {
-            border-color: #4f8ef7;
-        }
-        .form-footer {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 24px;
-        }
-        .remember-me {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            font-size: 13px;
-            color: #94a3b8;
-            cursor: pointer;
-        }
-        .forgot-link {
-            font-size: 13px;
-            color: #4f8ef7;
-            text-decoration: none;
-        }
-        .login-btn {
-            width: 100%;
-            background: #4f8ef7;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            padding: 13px;
-            font-size: 15px;
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .login-btn:hover { background: #3b7de8; }
-        .login-btn:disabled { background: #2d3148; cursor: not-allowed; }
-        .error-msg {
-            background: #3d0808;
-            color: #ef4444;
-            border: 1px solid #ef4444;
-            border-radius: 8px;
-            padding: 10px 14px;
-            font-size: 13px;
-            margin-bottom: 16px;
-            display: none;
-        }
-        .page-footer {
-            text-align: center;
-            margin-top: 24px;
-            font-size: 11px;
-            color: #64748b;
-            line-height: 1.6;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IDS Monitor — Sign In</title>
+  <link rel="stylesheet" href="/static/main.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--bg-deep);
+    }
+
+    /* Animated grid background */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .login-wrap {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      width: 860px;
+      max-width: 95vw;
+      border-radius: 20px;
+      overflow: hidden;
+      border: 1px solid var(--border-bright);
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Left panel */
+    .login-left {
+      background: linear-gradient(135deg, #0a1628 0%, #0c1a30 50%, #070e1a 100%);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      position: relative;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+    }
+
+    .login-left::before {
+      content: '';
+      position: absolute;
+      top: -100px; right: -100px;
+      width: 300px; height: 300px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(0,212,255,0.1) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-left::after {
+      content: '';
+      position: absolute;
+      bottom: -80px; left: -80px;
+      width: 250px; height: 250px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%);
+      pointer-events: none;
+    }
+
+    .login-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .login-brand-icon {
+      width: 44px; height: 44px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: var(--glow-cyan);
+    }
+
+    .login-brand h1 {
+      font-family: var(--font-display);
+      font-size: 18px;
+      font-weight: 800;
+      color: var(--text-primary);
+    }
+
+    .login-brand p {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-top: 2px;
+    }
+
+    .login-hero {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      padding: 40px 0;
+    }
+
+    .login-hero h2 {
+      font-family: var(--font-display);
+      font-size: 28px;
+      font-weight: 800;
+      line-height: 1.2;
+      color: var(--text-primary);
+      letter-spacing: -0.5px;
+    }
+
+    .login-hero h2 span {
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .login-hero p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.6;
+      margin-top: 12px;
+      max-width: 280px;
+    }
+
+    .feature-list {
+      margin-top: 28px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .feature-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+
+    .feature-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      flex-shrink: 0;
+    }
+
+    .login-footer {
+      font-size: 10px;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      line-height: 1.6;
+    }
+
+    /* Right panel */
+    .login-right {
+      background: var(--bg-card);
+      padding: 48px 40px;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .login-form-title {
+      font-family: var(--font-display);
+      font-size: 22px;
+      font-weight: 800;
+      color: var(--text-primary);
+      margin-bottom: 6px;
+    }
+
+    .login-form-subtitle {
+      color: var(--text-muted);
+      font-size: 12px;
+      font-family: var(--font-mono);
+      margin-bottom: 32px;
+    }
+
+    .error-alert {
+      background: rgba(255,59,92,0.08);
+      border: 1px solid rgba(255,59,92,0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--accent-red);
+      margin-bottom: 20px;
+      display: none;
+      font-family: var(--font-mono);
+    }
+
+    .login-btn {
+      width: 100%;
+      padding: 13px;
+      border-radius: 10px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent-cyan), #0099cc);
+      color: #000;
+      font-family: var(--font-display);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 0.2s;
+      letter-spacing: 0.5px;
+      margin-top: 8px;
+      box-shadow: 0 4px 20px rgba(0,212,255,0.25);
+    }
+
+    .login-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 28px rgba(0,212,255,0.35);
+    }
+
+    .login-btn:disabled {
+      background: var(--bg-surface);
+      color: var(--text-muted);
+      box-shadow: none;
+      transform: none;
+      cursor: not-allowed;
+    }
+
+    .form-group { margin-bottom: 18px; }
+
+    .form-label {
+      display: block;
+      font-size: 10px;
+      font-family: var(--font-mono);
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      margin-bottom: 8px;
+    }
+
+    .form-input {
+      width: 100%;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 11px 14px;
+      color: var(--text-primary);
+      font-size: 14px;
+      font-family: var(--font-body);
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .form-input:focus {
+      border-color: rgba(0,212,255,0.4);
+      box-shadow: 0 0 0 3px rgba(0,212,255,0.08);
+    }
+
+    .form-input::placeholder { color: var(--text-muted); }
+
+    @media (max-width: 680px) {
+      .login-wrap { grid-template-columns: 1fr; }
+      .login-left { display: none; }
+    }
+  </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="login-logo">
-            <div class="logo-icon">🛡️</div>
-            <h1>Smart Network Traffic Monitoring</h1>
-            <p>IDS System - Secure Login Portal</p>
+  <div class="login-wrap">
+    <!-- Left -->
+    <div class="login-left">
+      <div class="login-brand">
+        <div class="login-brand-icon">🛡</div>
+        <div>
+          <h1>IDS Monitor</h1>
+          <p>Network Security Platform</p>
         </div>
+      </div>
 
-        <div class="error-msg" id="errorMsg"></div>
+      <div class="login-hero">
+        <h2>Intelligent <span>Threat Detection</span> System</h2>
+        <p>Real-time ML-powered network intrusion detection with live traffic analysis and automated alerting.</p>
+        <div class="feature-list">
+          <div class="feature-item"><div class="feature-dot"></div> 99% detection accuracy with Random Forest ML</div>
+          <div class="feature-item"><div class="feature-dot"></div> Live packet capture via Raspberry Pi 5</div>
+          <div class="feature-item"><div class="feature-dot"></div> Real-time WebSocket dashboard updates</div>
+          <div class="feature-item"><div class="feature-dot"></div> Automated alert & blocklist management</div>
+        </div>
+      </div>
 
-        <div class="form-group">
-            <label>Username</label>
-            <input type="text" id="username" placeholder="Enter your username">
-        </div>
-        <div class="form-group">
-            <label>Password</label>
-            <input type="password" id="password" placeholder="Enter your password">
-        </div>
-        <div class="form-footer">
-            <label class="remember-me">
-                <input type="checkbox"> Remember me
-            </label>
-            <a href="#" class="forgot-link">Forgot password?</a>
-        </div>
-
-        <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign in</button>
-
-        <div class="page-footer">
-            Final Year Project 2026 | Network Security & IDS Research<br>
-            Universiti Teknologi Malaysia (UTM)
-        </div>
+      <div class="login-footer">
+        Final Year Project 2026<br>
+        Network Security & IDS Research<br>
+        Universiti Teknologi Malaysia
+      </div>
     </div>
 
-    <script>
-        // Allow Enter key to login
-        document.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') doLogin();
+    <!-- Right -->
+    <div class="login-right">
+      <div class="login-form-title">Welcome back</div>
+      <div class="login-form-subtitle">// SECURE ACCESS PORTAL</div>
+
+      <div class="error-alert" id="errorAlert"></div>
+
+      <div class="form-group">
+        <label class="form-label">Username</label>
+        <input type="text" id="username" class="form-input" placeholder="Enter your username" autocomplete="username">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Password</label>
+        <input type="password" id="password" class="form-input" placeholder="Enter your password" autocomplete="current-password">
+      </div>
+
+      <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In →</button>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
+
+    async function doLogin() {
+      const username  = document.getElementById('username').value.trim();
+      const password  = document.getElementById('password').value.trim();
+      const btn       = document.getElementById('loginBtn');
+      const errorAlert = document.getElementById('errorAlert');
+
+      if (!username || !password) {
+        errorAlert.textContent = '// ERROR: Username and password are required';
+        errorAlert.style.display = 'block';
+        return;
+      }
+
+      btn.disabled    = true;
+      btn.textContent = 'Authenticating...';
+      errorAlert.style.display = 'none';
+
+      try {
+        const res  = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, password })
         });
-
-        async function doLogin() {
-            const username = document.getElementById('username').value.trim();
-            const password = document.getElementById('password').value.trim();
-            const btn      = document.getElementById('loginBtn');
-            const errorMsg = document.getElementById('errorMsg');
-
-            if (!username || !password) {
-                errorMsg.textContent = 'Please enter username and password';
-                errorMsg.style.display = 'block';
-                return;
-            }
-
-            btn.disabled    = true;
-            btn.textContent = 'Signing in...';
-            errorMsg.style.display = 'none';
-
-            try {
-                const response = await fetch('/login', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ username, password })
-                });
-                const data = await response.json();
-
-                if (data.success) {
-                    window.location.href = '/dashboard';
-                } else {
-                    errorMsg.textContent   = data.message || 'Invalid credentials';
-                    errorMsg.style.display = 'block';
-                    btn.disabled    = false;
-                    btn.textContent = 'Sign in';
-                }
-            } catch (err) {
-                errorMsg.textContent   = 'Connection error. Please try again.';
-                errorMsg.style.display = 'block';
-                btn.disabled    = false;
-                btn.textContent = 'Sign in';
-            }
+        const data = await res.json();
+        if (data.success) {
+          btn.textContent = 'Access Granted ✓';
+          setTimeout(() => window.location.href = '/dashboard', 400);
+        } else {
+          errorAlert.textContent = `// ERROR: ${data.message || 'Invalid credentials'}`;
+          errorAlert.style.display = 'block';
+          btn.disabled    = false;
+          btn.textContent = 'Sign In →';
         }
-    </script>
+      } catch (err) {
+        errorAlert.textContent = '// ERROR: Connection failed. Try again.';
+        errorAlert.style.display = 'block';
+        btn.disabled    = false;
+        btn.textContent = 'Sign In →';
+      }
+    }
+  </script>
 </body>
 </html>

@@ -1,174 +1,199 @@
 {% extends "base.html" %}
 {% block title %}Overview{% endblock %}
+{% block breadcrumb %}Overview{% endblock %}
 
 {% block content %}
-<div class="page-title">Overview Dashboard</div>
-<div class="page-subtitle">Real-time analytics and network traffic insights</div>
+<div class="page-header">
+  <div class="page-title">Overview Dashboard</div>
+  <div class="page-subtitle">Real-time analytics and network traffic insights</div>
+</div>
 
-<!-- Stats Cards -->
+<!-- Stats -->
 <div class="stats-grid">
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Total Packets</div>
-            <div class="stat-value" id="totalPackets">0</div>
-        </div>
-        <div class="stat-icon blue">📡</div>
+  <div class="stat-card info">
+    <div class="stat-top">
+      <div class="stat-label">Total Packets</div>
+      <div class="stat-icon-wrap cyan">📡</div>
     </div>
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Abnormal Packets</div>
-            <div class="stat-value red" id="maliciousPackets">0</div>
-        </div>
-        <div class="stat-icon orange">⚠️</div>
+    <div class="stat-value cyan" id="statTotal">0</div>
+    <div class="stat-trend">All captured traffic</div>
+  </div>
+  <div class="stat-card danger">
+    <div class="stat-top">
+      <div class="stat-label">Malicious</div>
+      <div class="stat-icon-wrap red">⚠</div>
     </div>
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">New Alerts</div>
-            <div class="stat-value red" id="newAlerts">0</div>
-        </div>
-        <div class="stat-icon red">🔔</div>
+    <div class="stat-value red" id="statMalicious">0</div>
+    <div class="stat-trend">Threats detected</div>
+  </div>
+  <div class="stat-card warning">
+    <div class="stat-top">
+      <div class="stat-label">New Alerts</div>
+      <div class="stat-icon-wrap orange">🔔</div>
     </div>
-    <div class="stat-card">
-        <div>
-            <div class="stat-label">Blocked IPs</div>
-            <div class="stat-value" id="blockedIPs">0</div>
-        </div>
-        <div class="stat-icon green">🛡️</div>
+    <div class="stat-value orange" id="statAlerts">0</div>
+    <div class="stat-trend">Requires attention</div>
+  </div>
+  <div class="stat-card success">
+    <div class="stat-top">
+      <div class="stat-label">Blocked IPs</div>
+      <div class="stat-icon-wrap green">🛡</div>
     </div>
+    <div class="stat-value green" id="statBlocked">0</div>
+    <div class="stat-trend">Active blocks</div>
+  </div>
 </div>
 
-<!-- Charts Row 1 -->
+<!-- Charts -->
 <div class="charts-grid">
-    <div class="chart-card">
-        <div class="chart-title">Normal vs Abnormal Traffic</div>
-        <canvas id="donutChart" height="200"></canvas>
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Traffic Distribution</div>
+        <div class="chart-subtitle">Normal vs Malicious</div>
+      </div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-green)"></div>Normal</div>
+        <div class="legend-item"><div class="legend-dot" style="background:var(--accent-red)"></div>Malicious</div>
+      </div>
     </div>
-    <div class="chart-card">
-        <div class="chart-title">Traffic Trend (Last 20 Packets)</div>
-        <canvas id="trendChart" height="200"></canvas>
+    <canvas id="donutChart" height="180"></canvas>
+  </div>
+  <div class="chart-card">
+    <div class="chart-header">
+      <div>
+        <div class="chart-title">Traffic Trend</div>
+        <div class="chart-subtitle">Live packet stream</div>
+      </div>
     </div>
+    <canvas id="trendChart" height="180"></canvas>
+  </div>
 </div>
 
-<!-- Recent Traffic Table -->
+<!-- Recent Traffic -->
 <div class="card">
-    <div class="card-header">
-        <span class="card-title">Recent Traffic</span>
-        <a href="/live" class="btn btn-primary btn-sm">View All Live</a>
+  <div class="card-header">
+    <div class="card-title">Recent Traffic</div>
+    <div class="card-actions">
+      <div class="live-indicator"><div class="pulse-dot" style="background:var(--accent-cyan)"></div> LIVE</div>
+      <a href="/live" class="btn btn-primary btn-sm">View All →</a>
     </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Time</th>
-                <th>Source IP</th>
-                <th>Destination IP</th>
-                <th>Protocol</th>
-                <th>Length</th>
-                <th>Prediction</th>
-                <th>Confidence</th>
-            </tr>
-        </thead>
-        <tbody id="recentTable">
-            <tr><td colspan="7" style="text-align:center; color:#64748b;">Waiting for traffic...</td></tr>
-        </tbody>
-    </table>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Source IP</th>
+        <th>Destination</th>
+        <th>Protocol</th>
+        <th>Size</th>
+        <th>Status</th>
+        <th>Confidence</th>
+      </tr>
+    </thead>
+    <tbody id="recentTable">
+      <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">📡</div><div class="empty-text">Awaiting traffic data...</div></div></td></tr>
+    </tbody>
+  </table>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    // Stats
-    async function loadStats() {
-        const res  = await fetch('/api/stats');
-        const data = await res.json();
-        document.getElementById('totalPackets').textContent    = data.total_packets;
-        document.getElementById('maliciousPackets').textContent = data.malicious_packets;
-        document.getElementById('newAlerts').textContent       = data.new_alerts;
-        document.getElementById('blockedIPs').textContent      = data.blocked_ips;
-        donutChart.data.datasets[0].data = [
-            data.total_packets - data.malicious_packets,
-            data.malicious_packets
-        ];
-        donutChart.update();
+  // Donut chart
+  window.donutChart = new Chart(document.getElementById('donutChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Normal', 'Malicious'],
+      datasets: [{
+        data: [0, 0],
+        backgroundColor: ['rgba(0,255,136,0.7)', 'rgba(255,59,92,0.7)'],
+        borderColor: ['var(--accent-green)', 'var(--accent-red)'],
+        borderWidth: 1,
+        hoverOffset: 6
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '72%',
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15,21,32,0.95)',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1,
+          titleFont: { family: "'Space Mono'" },
+          bodyFont: { family: "'Space Mono'" }
+        }
+      }
     }
+  });
 
-    // Recent logs
-    async function loadLogs() {
-        const res  = await fetch('/api/logs');
-        const logs = await res.json();
-        const tbody = document.getElementById('recentTable');
-        if (logs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b;">Waiting for traffic...</td></tr>';
-            return;
+  // Trend chart
+  const trendLabels = [];
+  const trendNormal = [];
+  const trendBad    = [];
+  const trendChart  = new Chart(document.getElementById('trendChart'), {
+    type: 'line',
+    data: {
+      labels: trendLabels,
+      datasets: [
+        {
+          label: 'Normal',
+          data: trendNormal,
+          borderColor: 'var(--accent-green)',
+          backgroundColor: 'rgba(0,255,136,0.06)',
+          fill: true, tension: 0.4, pointRadius: 2,
+          borderWidth: 1.5
+        },
+        {
+          label: 'Malicious',
+          data: trendBad,
+          borderColor: 'var(--accent-red)',
+          backgroundColor: 'rgba(255,59,92,0.06)',
+          fill: true, tension: 0.4, pointRadius: 2,
+          borderWidth: 1.5
         }
-        tbody.innerHTML = logs.slice(0, 10).map(l => `
-            <tr>
-                <td>${l.captured_at}</td>
-                <td>${l.src_ip}</td>
-                <td>${l.dst_ip}</td>
-                <td>${l.protocol}</td>
-                <td>${l.length}</td>
-                <td><span class="badge ${l.prediction === 'MALICIOUS' ? 'badge-red' : 'badge-green'}">${l.prediction}</span></td>
-                <td>${(l.confidence * 100).toFixed(0)}%</td>
-            </tr>
-        `).join('');
+      ]
+    },
+    options: {
+      responsive: true,
+      animation: { duration: 200 },
+      plugins: { legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(15,21,32,0.95)',
+          borderColor: 'rgba(255,255,255,0.1)',
+          borderWidth: 1
+        }
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { maxTicksLimit: 8 } },
+        y: { grid: { color: 'rgba(255,255,255,0.04)' }, beginAtZero: true }
+      }
     }
+  });
 
-    // Donut Chart
-    const donutChart = new Chart(document.getElementById('donutChart'), {
-        type: 'doughnut',
-        data: {
-            labels: ['Normal', 'Abnormal'],
-            datasets: [{ data: [0, 0], backgroundColor: ['#22c55e', '#ef4444'], borderWidth: 0 }]
-        },
-        options: { responsive: true, plugins: { legend: { labels: { color: '#94a3b8' } } } }
-    });
-
-    // Trend Chart
-    const trendLabels = [];
-    const trendNormal = [];
-    const trendAbnormal = [];
-    const trendChart = new Chart(document.getElementById('trendChart'), {
-        type: 'line',
-        data: {
-            labels: trendLabels,
-            datasets: [
-                { label: 'Normal', data: trendNormal, borderColor: '#22c55e', backgroundColor: 'rgba(34,197,94,0.1)', fill: true, tension: 0.4 },
-                { label: 'Abnormal', data: trendAbnormal, borderColor: '#ef4444', backgroundColor: 'rgba(239,68,68,0.1)', fill: true, tension: 0.4 }
-            ]
-        },
-        options: {
-            responsive: true,
-            plugins: { legend: { labels: { color: '#94a3b8' } } },
-            scales: {
-                x: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' } },
-                y: { ticks: { color: '#64748b' }, grid: { color: '#1e2235' } }
-            }
-        }
-    });
-
-    // Live updates via WebSocket
-    socket.on('new_packet', function(data) {
-        loadStats();
-        loadLogs();
-        // Update trend
-        const time = new Date().toLocaleTimeString();
-        trendLabels.push(time);
-        if (data.label === 'MALICIOUS') {
-            trendAbnormal.push((trendAbnormal[trendAbnormal.length-1] || 0) + 1);
-            trendNormal.push(trendNormal[trendNormal.length-1] || 0);
-        } else {
-            trendNormal.push((trendNormal[trendNormal.length-1] || 0) + 1);
-            trendAbnormal.push(trendAbnormal[trendAbnormal.length-1] || 0);
-        }
-        if (trendLabels.length > 20) {
-            trendLabels.shift(); trendNormal.shift(); trendAbnormal.shift();
-        }
-        trendChart.update();
-    });
-
-    // Load on start and refresh every 10 seconds
+  // WebSocket live update
+  socket.on('new_packet', data => {
     loadStats();
     loadLogs();
-    setInterval(() => { loadStats(); loadLogs(); }, 10000);
+    const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+    trendLabels.push(t);
+    if (data.label === 'MALICIOUS') {
+      trendBad.push((trendBad[trendBad.length-1] || 0) + 1);
+      trendNormal.push(trendNormal[trendNormal.length-1] || 0);
+    } else {
+      trendNormal.push((trendNormal[trendNormal.length-1] || 0) + 1);
+      trendBad.push(trendBad[trendBad.length-1] || 0);
+    }
+    if (trendLabels.length > 24) {
+      trendLabels.shift(); trendNormal.shift(); trendBad.shift();
+    }
+    trendChart.update();
+  });
+
+  loadStats();
+  loadLogs();
+  setInterval(() => { loadStats(); loadLogs(); }, 10000);
 </script>
 {% endblock %}

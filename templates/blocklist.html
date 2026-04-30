@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}Blocklist{% endblock %}
+{% block breadcrumb %}Blocklist{% endblock %}
+
+{% block content %}
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+  <div>
+    <div class="page-title">IP Blocklist</div>
+    <div class="page-subtitle">Manage and monitor blocked IP addresses</div>
+  </div>
+  <button class="btn btn-danger btn-sm" onclick="openModal('addBlockModal')">+ Block IP</button>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <div class="card-title">Active Blocks</div>
+    <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted)" id="blockCount">— entries</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>IP Address</th>
+        <th>Reason</th>
+        <th>Source</th>
+        <th>Status</th>
+        <th>Added At</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="blocklistTable">
+      <tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚫</div><div class="empty-text">No blocked IPs</div></div></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Add Block Modal -->
+<div class="modal-overlay" id="addBlockModal">
+  <div class="modal">
+    <div class="modal-title">🚫 Block IP Address</div>
+    <div class="form-group">
+      <label class="form-label">IP Address</label>
+      <input type="text" id="blockIP" class="form-input" placeholder="e.g. 192.168.1.100">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Reason</label>
+      <input type="text" id="blockReason" class="form-input" placeholder="e.g. Suspicious port scan">
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('addBlockModal')">Cancel</button>
+      <button class="btn btn-danger" onclick="submitBlockIP()">Block IP</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  async function loadBlocklist() {
+    try {
+      const res  = await fetch('/api/blocklist');
+      const data = await res.json();
+      const countEl = document.getElementById('blockCount');
+      if (countEl) countEl.textContent = `${data.length} entr${data.length !== 1 ? 'ies' : 'y'}`;
+      const tbody = document.getElementById('blocklistTable');
+      if (!tbody) return;
+      if (data.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><div class="empty-icon">🚫</div><div class="empty-text">No blocked IPs</div></div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = data.map(b => `
+        <tr>
+          <td class="mono" style="color:var(--accent-cyan)">${b.ip_address}</td>
+          <td style="color:var(--text-secondary)">${b.reason}</td>
+          <td><span class="badge ${b.source === 'auto' ? 'badge-cyan' : 'badge-purple'}">${b.source}</span></td>
+          <td><span class="badge ${b.is_active ? 'badge-red' : 'badge-gray'}">${b.is_active ? 'Active' : 'Inactive'}</span></td>
+          <td class="mono" style="color:var(--text-muted); font-size:11px">${b.added_at}</td>
+          <td><button class="btn btn-ghost btn-xs" onclick="removeBlock(${b.block_id})">Remove</button></td>
+        </tr>
+      `).join('');
+    } catch(e) { console.warn('Blocklist error:', e); }
+  }
+
+  loadBlocklist();
+  setInterval(loadBlocklist, 15000);
+</script>
+{% endblock %}

@@ -1,139 +1,73 @@
 {% extends "base.html" %}
 {% block title %}Users{% endblock %}
+{% block breadcrumb %}User Management{% endblock %}
 
 {% block content %}
-<div class="page-title">User Management</div>
-<div class="page-subtitle">Manage user accounts and permissions</div>
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+  <div>
+    <div class="page-title">User Management</div>
+    <div class="page-subtitle">Manage system access and user permissions</div>
+  </div>
+  <button class="btn btn-primary btn-sm" onclick="openModal('addUserModal')">+ Add User</button>
+</div>
 
 <div class="card">
-    <div class="card-header">
-        <span class="card-title">User Management</span>
-        <button class="btn btn-primary btn-sm" onclick="showAddModal()">+ Add User</button>
-    </div>
-    <table>
-        <thead>
-            <tr>
-                <th>Username</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th>Status</th>
-                <th>Created</th>
-                <th>Last Login</th>
-                <th>Actions</th>
-            </tr>
-        </thead>
-        <tbody id="usersTable">
-            <tr><td colspan="7" style="text-align:center; color:#64748b;">Loading users...</td></tr>
-        </tbody>
-    </table>
+  <div class="card-header">
+    <div class="card-title">System Users</div>
+    <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted)" id="userCount">— users</div>
+  </div>
+  <table>
+    <thead>
+      <tr>
+        <th>Username</th>
+        <th>Email</th>
+        <th>Role</th>
+        <th>Status</th>
+        <th>Created</th>
+        <th>Last Login</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="usersTable">
+      <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-text">Loading users...</div></div></td></tr>
+    </tbody>
+  </table>
 </div>
 
 <!-- Add User Modal -->
-<div id="addModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:1000; align-items:center; justify-content:center;">
-    <div style="background:#1a1d2e; border:1px solid #2d3148; border-radius:12px; padding:30px; width:400px;">
-        <h3 style="margin-bottom:20px;">Add New User</h3>
-        <div style="margin-bottom:16px;">
-            <label style="display:block; color:#94a3b8; font-size:13px; margin-bottom:8px;">Username</label>
-            <input type="text" id="newUsername" placeholder="Enter username"
-                style="width:100%; background:#0f1117; border:1px solid #2d3148; border-radius:8px; padding:10px; color:#e2e8f0; font-size:14px; outline:none;">
-        </div>
-        <div style="margin-bottom:16px;">
-            <label style="display:block; color:#94a3b8; font-size:13px; margin-bottom:8px;">Email</label>
-            <input type="email" id="newEmail" placeholder="Enter email"
-                style="width:100%; background:#0f1117; border:1px solid #2d3148; border-radius:8px; padding:10px; color:#e2e8f0; font-size:14px; outline:none;">
-        </div>
-        <div style="margin-bottom:16px;">
-            <label style="display:block; color:#94a3b8; font-size:13px; margin-bottom:8px;">Password</label>
-            <input type="password" id="newPassword" placeholder="Enter password"
-                style="width:100%; background:#0f1117; border:1px solid #2d3148; border-radius:8px; padding:10px; color:#e2e8f0; font-size:14px; outline:none;">
-        </div>
-        <div style="margin-bottom:20px;">
-            <label style="display:block; color:#94a3b8; font-size:13px; margin-bottom:8px;">Role</label>
-            <select id="newRole"
-                style="width:100%; background:#0f1117; border:1px solid #2d3148; border-radius:8px; padding:10px; color:#e2e8f0; font-size:14px; outline:none;">
-                <option value="viewer">Viewer</option>
-                <option value="analyst">Analyst</option>
-                <option value="admin">Admin</option>
-            </select>
-        </div>
-        <div style="display:flex; gap:10px; justify-content:flex-end;">
-            <button class="btn btn-sm" style="background:#2d3148; color:#e2e8f0;" onclick="hideAddModal()">Cancel</button>
-            <button class="btn btn-primary btn-sm" onclick="addUser()">Add User</button>
-        </div>
+<div class="modal-overlay" id="addUserModal">
+  <div class="modal">
+    <div class="modal-title">◈ Add New User</div>
+    <div class="form-group">
+      <label class="form-label">Username</label>
+      <input type="text" id="newUsername" class="form-input" placeholder="Enter username">
     </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" id="newEmail" class="form-input" placeholder="Enter email address">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Password</label>
+      <input type="password" id="newPassword" class="form-input" placeholder="Enter password">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Role</label>
+      <select id="newRole" class="form-select">
+        <option value="viewer">Viewer — Read only access</option>
+        <option value="analyst">Analyst — Can manage alerts</option>
+        <option value="admin">Admin — Full access</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('addUserModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitAddUser()">Add User</button>
+    </div>
+  </div>
 </div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-    async function loadUsers() {
-        const res   = await fetch('/api/users');
-        const users = await res.json();
-        const tbody = document.getElementById('usersTable');
-
-        if (users.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#64748b;">No users found...</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = users.map(u => `
-            <tr>
-                <td style="font-weight:600">${u.username}</td>
-                <td style="color:#94a3b8">${u.email}</td>
-                <td><span class="badge ${u.role === 'admin' ? 'badge-blue' : u.role === 'analyst' ? 'badge-orange' : 'badge-gray'}">${u.role}</span></td>
-                <td><span class="badge ${u.is_active ? 'badge-green' : 'badge-red'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
-                <td style="color:#64748b">${u.created_at}</td>
-                <td style="color:#64748b">${u.last_login_at}</td>
-                <td>
-                    <button class="btn btn-sm" style="background:#3d0808; color:#ef4444;"
-                        onclick="deactivateUser(${u.user_id})">Deactivate</button>
-                </td>
-            </tr>
-        `).join('');
-    }
-
-    function showAddModal() {
-        document.getElementById('addModal').style.display = 'flex';
-    }
-
-    function hideAddModal() {
-        document.getElementById('addModal').style.display = 'none';
-        document.getElementById('newUsername').value = '';
-        document.getElementById('newEmail').value    = '';
-        document.getElementById('newPassword').value = '';
-    }
-
-    async function addUser() {
-        const username = document.getElementById('newUsername').value.trim();
-        const email    = document.getElementById('newEmail').value.trim();
-        const password = document.getElementById('newPassword').value.trim();
-        const role     = document.getElementById('newRole').value;
-
-        if (!username || !email || !password) {
-            alert('Please fill all fields');
-            return;
-        }
-
-        const res  = await fetch('/api/users', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ username, email, password, role })
-        });
-        const data = await res.json();
-        if (data.success) {
-            hideAddModal();
-            loadUsers();
-        } else {
-            alert(data.message || 'Error adding user');
-        }
-    }
-
-    async function deactivateUser(id) {
-        if (!confirm('Deactivate this user?')) return;
-        await fetch('/api/users/' + id + '/deactivate', { method: 'POST' });
-        loadUsers();
-    }
-
-    loadUsers();
+  loadUsers();
 </script>
 {% endblock %}
