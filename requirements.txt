@@ -7,3 +7,4 @@ gunicorn
 eventlet
 pymysql
 cryptography
+firebase-admin

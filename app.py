@@ -7,6 +7,13 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
 
+import firebase_admin
+from firebase_admin import credentials, firestore
+
+cred = credentials.Certificate('firebase-key.json')
+firebase_admin.initialize_app(cred)
+db_firebase = firestore.client()
+
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ids-secret-key-2026'
 import os
@@ -118,6 +125,29 @@ def receive_packet():
     )
     db.session.add(log)
     db.session.commit()
+
+    # Save to Firebase
+    db_firebase.collection('traffic_logs').add({
+        'src_ip':      data.get('src_ip'),
+        'dst_ip':      data.get('dst_ip'),
+        'protocol':    data.get('protocol'),
+        'length':      data.get('length'),
+        'label':       data.get('label'),
+        'confidence':  data.get('confidence'),
+        'attack_type': data.get('attack_type'),
+        'timestamp':   firestore.SERVER_TIMESTAMP
+    })
+
+    # If malicious save to alerts collection
+    if data.get('label') == 'MALICIOUS':
+        db_firebase.collection('alerts').add({
+            'src_ip':      data.get('src_ip'),
+            'dst_ip':      data.get('dst_ip'),
+            'confidence':  data.get('confidence'),
+            'attack_type': data.get('attack_type'),
+            'status':      'new',
+            'timestamp':   firestore.SERVER_TIMESTAMP
+        })
 
     # If malicious create alert
     if data.get('label') == 'MALICIOUS':

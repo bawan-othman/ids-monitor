@@ -3,3 +3,4 @@ __pycache__/
 instance/
 *.db
 .env
+firebase-key.json
