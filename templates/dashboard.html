@@ -193,7 +193,25 @@
   });
 
   loadStats();
-  loadLogs();
-  setInterval(() => { loadStats(); loadLogs(); }, 10000);
+  loadLogs();async function updateTrend() {
+    const res  = await fetch('/api/logs');
+    const logs = await res.json();
+    if (logs.length === 0) return;
+    const last = logs.slice(0, 20).reverse();
+    trendLabels.length = 0;
+    trendNormal.length = 0;
+    trendBad.length    = 0;
+    let n = 0, m = 0;
+    last.forEach(l => {
+        trendLabels.push(l.captured_at.split(' ')[1]);
+        if (l.prediction === 'MALICIOUS') m++;
+        else n++;
+        trendNormal.push(n);
+        trendBad.push(m);
+    });
+    trendChart.update();
+}
+
+  setInterval(() => { loadStats(); loadLogs(); updateTrend(); }, 5000);
 </script>
 {% endblock %}
