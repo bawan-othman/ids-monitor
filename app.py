@@ -16,7 +16,7 @@ cred = credentials.Certificate(firebase_key)
 firebase_admin.initialize_app(cred)
 db_firebase = firestore.client()
 
-app = Flask(__name__)
+app = Flask(__name__, instance_path='/tmp')
 app.config['SECRET_KEY'] = 'ids-secret-key-2026'
 import os
 database_url = os.environ.get('DATABASE_URL', None)
