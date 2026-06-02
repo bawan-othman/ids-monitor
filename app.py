@@ -19,10 +19,13 @@ db_firebase = firestore.client()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'ids-secret-key-2026'
 import os
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///ids.db')
-if database_url.startswith('mysql://'):
-    database_url = database_url.replace('mysql://', 'mysql+pymysql://', 1)
-app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+database_url = os.environ.get('DATABASE_URL', None)
+if database_url:
+    if database_url.startswith('mysql://'):
+        database_url = database_url.replace('mysql://', 'mysql+pymysql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/ids.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 CORS(app)
