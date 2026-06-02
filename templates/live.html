@@ -142,5 +142,39 @@
     document.getElementById('statPPS').textContent = ppsCount;
     ppsCount = 0;
   }, 1000);
+
+  // Poll for new packets every 2 seconds
+async function pollLive() {
+    try {
+        const res  = await fetch('/api/logs');
+        const logs = await res.json();
+        if (logs.length === 0) return;
+        const tbody = document.getElementById('liveTable');
+        if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
+        tbody.innerHTML = logs.slice(0, 50).map((l, i) => `
+            <tr class="${l.prediction === 'MALICIOUS' ? 'malicious-row' : ''}">
+                <td class="mono" style="color:var(--text-muted)">${i + 1}</td>
+                <td class="mono" style="color:var(--text-muted)">${l.captured_at.split(' ')[1]}</td>
+                <td class="mono" style="color:${l.prediction === 'MALICIOUS' ? 'var(--accent-red)' : 'var(--text-primary)'}">${l.src_ip || '—'}</td>
+                <td class="mono" style="color:var(--text-muted)">${l.dst_ip || '—'}</td>
+                <td>${l.protocol || '—'}</td>
+                <td class="mono" style="color:var(--text-muted)">${l.length || '—'} B</td>
+                <td>${l.prediction === 'MALICIOUS'
+                    ? '<span class="badge badge-red">⚠ Malicious</span>'
+                    : '<span class="badge badge-green">✓ Normal</span>'}</td>
+                <td class="mono" style="color:var(--text-muted)">${l.confidence ? Math.round(l.confidence * 100) + '%' : '—'}</td>
+            </tr>
+        `).join('');
+        total = logs.length;
+        mal   = logs.filter(l => l.prediction === 'MALICIOUS').length;
+        norm  = total - mal;
+        document.getElementById('statTotal').textContent    = fmt(total);
+        document.getElementById('statMalicious').textContent = fmt(mal);
+        document.getElementById('statNormal').textContent    = fmt(norm);
+    } catch(e) {}
+}
+
+pollLive();
+setInterval(pollLive, 2000);
 </script>
 {% endblock %}
