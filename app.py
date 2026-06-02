@@ -175,17 +175,25 @@ def receive_packet():
 
 @app.route('/api/stats')
 def get_stats():
-    total    = TrafficLog.query.count()
-    malicious = TrafficLog.query.filter_by(prediction='MALICIOUS').count()
-    alerts   = Alert.query.filter_by(status='new').count()
-    blocked  = Blocklist.query.filter_by(is_active=True).count()
-    return jsonify({
-        'total_packets': total,
-        'malicious_packets': malicious,
-        'new_alerts': alerts,
-        'blocked_ips': blocked
-    })
-
+    try:
+        logs     = db_firebase.collection('traffic_logs').get()
+        alerts   = db_firebase.collection('alerts').where('status', '==', 'new').get()
+        blocked  = db_firebase.collection('blocklist').where('is_active', '==', True).get()
+        total    = len(logs)
+        malicious = sum(1 for l in logs if l.to_dict().get('label') == 'MALICIOUS')
+        return jsonify({
+            'total_packets':    total,
+            'malicious_packets': malicious,
+            'new_alerts':       len(alerts),
+            'blocked_ips':      len(blocked)
+        })
+    except Exception as e:
+        return jsonify({
+            'total_packets': 0,
+            'malicious_packets': 0,
+            'new_alerts': 0,
+            'blocked_ips': 0
+        })
 @app.route('/api/logs')
 def get_logs():
     logs = TrafficLog.query.order_by(TrafficLog.captured_at.desc()).limit(100).all()
