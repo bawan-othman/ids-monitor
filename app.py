@@ -133,16 +133,33 @@ def receive_packet():
     db.session.add(log)
     db.session.commit()
 
-    # Save to Firebase
-    db_firebase.collection('traffic_logs').add({
-        'src_ip':      data.get('src_ip'),
-        'dst_ip':      data.get('dst_ip'),
-        'protocol':    data.get('protocol'),
-        'length':      data.get('length'),
-        'label':       data.get('label'),
-        'confidence':  data.get('confidence'),
-        'attack_type': data.get('attack_type'),
-        'timestamp':   firestore.SERVER_TIMESTAMP
+   # Save to Firebase
+doc_ref = db_firebase.collection('traffic_logs').add({
+    'src_ip':      data.get('src_ip'),
+    'dst_ip':      data.get('dst_ip'),
+    'protocol':    data.get('protocol'),
+    'length':      data.get('length'),
+    'label':       data.get('label'),
+    'confidence':  data.get('confidence'),
+    'attack_type': data.get('attack_type'),
+    'timestamp':   firestore.SERVER_TIMESTAMP
+})
+
+# Update counter
+counter_ref = db_firebase.collection('counters').document('stats')
+counter_doc = counter_ref.get()
+if counter_doc.exists:
+    current = counter_doc.to_dict()
+    counter_ref.update({
+        'total': current.get('total', 0) + 1,
+        'malicious': current.get('malicious', 0) + (1 if data.get('label') == 'MALICIOUS' else 0)
+    })
+else:
+    counter_ref.set({
+        'total': 1,
+        'malicious': 1 if data.get('label') == 'MALICIOUS' else 0,
+        'alerts': 0,
+        'blocked': 0
     })
 
     # If malicious save to alerts collection
@@ -155,6 +172,20 @@ def receive_packet():
             'status':      'new',
             'timestamp':   firestore.SERVER_TIMESTAMP
         })
+
+        if data.get('label') == 'MALICIOUS':
+    db_firebase.collection('alerts').add({
+        'src_ip':      data.get('src_ip'),
+        'dst_ip':      data.get('dst_ip'),
+        'confidence':  data.get('confidence'),
+        'attack_type': data.get('attack_type'),
+        'status':      'new',
+        'timestamp':   firestore.SERVER_TIMESTAMP
+    })
+    # Update alert counter
+    db_firebase.collection('counters').document('stats').update({
+        'alerts': firestore.Increment(1)
+    })
 
     # If malicious create alert
     if data.get('label') == 'MALICIOUS':
@@ -176,36 +207,29 @@ def receive_packet():
 @app.route('/api/stats')
 def get_stats():
     try:
-        logs      = db_firebase.collection('traffic_logs').get()
-        total     = len(logs)
-        malicious = sum(1 for l in logs if l.to_dict().get('label') == 'MALICIOUS')
-        alerts    = db_firebase.collection('alerts').where('status', '==', 'new').get()
-        blocked   = db_firebase.collection('blocklist').where('is_active', '==', True).get()
+        counter = db_firebase.collection('counters').document('stats').get()
+        if counter.exists:
+            data = counter.to_dict()
+            return jsonify({
+                'total_packets':     data.get('total', 0),
+                'malicious_packets': data.get('malicious', 0),
+                'new_alerts':        data.get('alerts', 0),
+                'blocked_ips':       data.get('blocked', 0)
+            })
         return jsonify({
-            'total_packets':     total,
-            'malicious_packets': malicious,
-            'new_alerts':        len(alerts),
-            'blocked_ips':       len(blocked)
+            'total_packets': 0,
+            'malicious_packets': 0,
+            'new_alerts': 0,
+            'blocked_ips': 0
         })
     except Exception as e:
-        try:
-            total     = TrafficLog.query.count()
-            malicious = TrafficLog.query.filter_by(prediction='MALICIOUS').count()
-            alerts    = Alert.query.filter_by(status='new').count()
-            blocked   = Blocklist.query.filter_by(is_active=True).count()
-            return jsonify({
-                'total_packets':     total,
-                'malicious_packets': malicious,
-                'new_alerts':        alerts,
-                'blocked_ips':       blocked
-            })
-        except:
-            return jsonify({
-                'total_packets': 0,
-                'malicious_packets': 0,
-                'new_alerts': 0,
-                'blocked_ips': 0
-            })
+        return jsonify({
+            'total_packets': 0,
+            'malicious_packets': 0,
+            'new_alerts': 0,
+            'blocked_ips': 0
+        })
+    
 @app.route('/api/logs')
 def get_logs():
     try:
