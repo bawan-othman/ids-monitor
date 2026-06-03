@@ -208,32 +208,42 @@ def get_stats():
             })
 @app.route('/api/logs')
 def get_logs():
-    logs = TrafficLog.query.order_by(TrafficLog.captured_at.desc()).limit(100).all()
-    return jsonify([{
-        'log_id':     l.log_id,
-        'captured_at': l.captured_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'src_ip':     l.src_ip,
-        'dst_ip':     l.dst_ip,
-        'src_port':   l.src_port,
-        'dst_port':   l.dst_port,
-        'protocol':   l.protocol,
-        'length':     l.packet_length,
-        'prediction': l.prediction,
-        'confidence': l.confidence
-    } for l in logs])
+    try:
+        logs = db_firebase.collection('traffic_logs')\
+            .order_by('timestamp', direction=firestore.Query.DESCENDING)\
+            .limit(100).get()
+        return jsonify([{
+            'log_id':      i,
+            'captured_at': l.to_dict().get('timestamp').strftime('%Y-%m-%d %H:%M:%S') if l.to_dict().get('timestamp') else '',
+            'src_ip':      l.to_dict().get('src_ip'),
+            'dst_ip':      l.to_dict().get('dst_ip'),
+            'src_port':    l.to_dict().get('src_port', 0),
+            'dst_port':    l.to_dict().get('dst_port', 0),
+            'protocol':    l.to_dict().get('protocol'),
+            'length':      l.to_dict().get('length'),
+            'prediction':  l.to_dict().get('label'),
+            'confidence':  l.to_dict().get('confidence')
+        } for i, l in enumerate(logs)])
+    except Exception as e:
+        return jsonify([])
 
 @app.route('/api/alerts')
 def get_alerts():
-    alerts = Alert.query.order_by(Alert.created_at.desc()).limit(100).all()
-    return jsonify([{
-        'alert_id':   a.alert_id,
-        'created_at': a.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'severity':   a.severity,
-        'title':      a.title,
-        'description': a.description,
-        'status':     a.status,
-        'log_id':     a.log_id
-    } for a in alerts])
+    try:
+        alerts = db_firebase.collection('alerts')\
+            .order_by('timestamp', direction=firestore.Query.DESCENDING)\
+            .limit(100).get()
+        return jsonify([{
+            'alert_id':    i,
+            'created_at':  a.to_dict().get('timestamp').strftime('%Y-%m-%d %H:%M:%S') if a.to_dict().get('timestamp') else '',
+            'severity':    'high' if a.to_dict().get('confidence', 0) > 0.9 else 'medium',
+            'title':       f"Malicious traffic from {a.to_dict().get('src_ip')}",
+            'description': f"Attack: {a.to_dict().get('attack_type')} | Confidence: {a.to_dict().get('confidence', 0):.2f}",
+            'status':      a.to_dict().get('status', 'new'),
+            'log_id':      i
+        } for i, a in enumerate(alerts)])
+    except Exception as e:
+        return jsonify([])
 
 @app.route('/api/alerts/<int:alert_id>/acknowledge', methods=['POST'])
 def acknowledge_alert(alert_id):
