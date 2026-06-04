@@ -71,7 +71,9 @@ def login():
         data     = request.get_json()
         username = data.get('username')
         password = data.get('password')
-        user     = User.query.filter_by(username=username, is_active=True).first()
+
+        # Try SQLite first
+        user = User.query.filter_by(username=username, is_active=True).first()
         if user and check_password_hash(user.password_hash, password):
             session['user_id']  = user.user_id
             session['username'] = user.username
@@ -79,6 +81,26 @@ def login():
             user.last_login_at  = datetime.utcnow()
             db.session.commit()
             return jsonify({'success': True})
+
+        # Fallback: check Firebase users
+        try:
+            fb_users = db_firebase.collection('users')\
+                .where('username', '==', username)\
+                .where('is_active', '==', True).get()
+            for fu in fb_users:
+                d = fu.to_dict()
+                if check_password_hash(d.get('password_hash', ''), password):
+                    session['user_id']  = fu.id
+                    session['username'] = d.get('username')
+                    session['role']     = d.get('role', 'viewer')
+                    # Update last login in Firebase
+                    db_firebase.collection('users').document(fu.id).update({
+                        'last_login_at': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+                    })
+                    return jsonify({'success': True})
+        except Exception as e:
+            print(f"Firebase login fallback error: {e}")
+
         return jsonify({'success': False, 'message': 'Invalid credentials'})
     return render_template('login.html')
 
@@ -339,38 +361,79 @@ def delete_blocklist(block_id):
 
 @app.route('/api/users', methods=['GET'])
 def get_users():
-    users = User.query.all()
-    return jsonify([{
-        'user_id':      u.user_id,
-        'username':     u.username,
-        'email':        u.email,
-        'role':         u.role,
-        'is_active':    u.is_active,
-        'created_at':   u.created_at.strftime('%Y-%m-%d %H:%M:%S'),
-        'last_login_at': u.last_login_at.strftime('%Y-%m-%d %H:%M:%S') if u.last_login_at else 'Never'
-    } for u in users])
+    try:
+        users_ref = db_firebase.collection('users').order_by('created_at', direction=firestore.Query.DESCENDING).get()
+        result = []
+        for i, u in enumerate(users_ref):
+            d = u.to_dict()
+            result.append({
+                'user_id':       u.id,
+                'username':      d.get('username', ''),
+                'email':         d.get('email', ''),
+                'role':          d.get('role', 'viewer'),
+                'is_active':     d.get('is_active', True),
+                'created_at':    d.get('created_at', ''),
+                'last_login_at': d.get('last_login_at', 'Never')
+            })
+        return jsonify(result)
+    except Exception as e:
+        print(f"Get users error: {e}")
+        return jsonify([])
+
 
 @app.route('/api/users', methods=['POST'])
 def add_user():
     data = request.get_json()
-    if User.query.filter_by(username=data.get('username')).first():
+    username = data.get('username')
+
+    # Check duplicate in Firebase
+    existing = db_firebase.collection('users').where('username', '==', username).get()
+    if len(existing) > 0:
         return jsonify({'success': False, 'message': 'Username already exists'})
-    user = User(
-        username      = data.get('username'),
-        email         = data.get('email'),
-        password_hash = generate_password_hash(data.get('password', 'changeme123')),
-        role          = data.get('role', 'viewer')
-    )
-    db.session.add(user)
-    db.session.commit()
+
+    hashed_pw = generate_password_hash(data.get('password', 'changeme123'))
+    now = datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
+
+    # Save to Firebase
+    db_firebase.collection('users').add({
+        'username':      username,
+        'email':         data.get('email', ''),
+        'password_hash': hashed_pw,
+        'role':          data.get('role', 'viewer'),
+        'is_active':     True,
+        'created_at':    now,
+        'last_login_at': 'Never'
+    })
+
+    # Also save to SQLite as fallback
+    try:
+        if not User.query.filter_by(username=username).first():
+            user = User(
+                username      = username,
+                email         = data.get('email'),
+                password_hash = hashed_pw,
+                role          = data.get('role', 'viewer')
+            )
+            db.session.add(user)
+            db.session.commit()
+    except Exception as e:
+        print(f"SQLite user save skipped: {e}")
+
     return jsonify({'success': True})
 
-@app.route('/api/users/<int:user_id>/deactivate', methods=['POST'])
+@app.route('/api/users/<user_id>/deactivate', methods=['POST'])
 def deactivate_user(user_id):
-    user = User.query.get_or_404(user_id)
-    user.is_active = False
-    db.session.commit()
+    # Try Firebase first
+    try:
+        db_firebase.collection('users').document(user_id).update({'is_active': False})
+    except Exception as e:
+        print(f"Firebase deactivate error: {e}")
+    # Also try SQLite
+    try:
+        user = User.query.get(int(user_id))
+        if user:
+            user.is_active = False
+            db.session.commit()
+    except:
+        pass
     return jsonify({'success': True})
-
-if __name__ == '__main__':
-    socketio.run(app, host='0.0.0.0', port=5000, debug=True)
