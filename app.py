@@ -33,7 +33,7 @@ if database_url:
         database_url = database_url.replace('mysql://', 'mysql+pymysql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ids.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/ids.db'  # ← MODIFIED
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 CORS(app)
@@ -42,18 +42,21 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ── Create tables and default admin ──────────────────
 with app.app_context():
-    db.create_all()
-    if not User.query.filter_by(username='admin').first():
-        admin = User(
-            username='admin',
-            email='admin@ids.local',
-            password_hash=generate_password_hash('admin123'),
-            role='admin',
-            is_active=True
-        )
-        db.session.add(admin)
-        db.session.commit()
-        print("Admin user created!")
+    try:                                                              # ← MODIFIED
+        db.create_all()
+        if not User.query.filter_by(username='admin').first():
+            admin = User(
+                username='admin',
+                email='admin@ids.local',
+                password_hash=generate_password_hash('admin123'),
+                role='admin',
+                is_active=True
+            )
+            db.session.add(admin)
+            db.session.commit()
+            print("Admin user created!")
+    except Exception as e:                                           # ← MODIFIED
+        print(f"Database setup skipped: {e}")                        # ← MODIFIED
 
 # ── Auth Routes ───────────────────────────────────────
 @app.route('/')
