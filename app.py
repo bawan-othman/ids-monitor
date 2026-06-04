@@ -6,28 +6,34 @@ from database import db, User, TrafficLog, Alert, Blocklist
 from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 import os
+import json
 
 import firebase_admin
 from firebase_admin import credentials, firestore
 
-import json
-firebase_key = json.loads(os.environ.get('FIREBASE_KEY', '{}'))
-cred = credentials.Certificate(firebase_key)
-firebase_admin.initialize_app(cred)
+# Initialize Firebase
+firebase_key_str = os.environ.get('FIREBASE_KEY', '')
+if firebase_key_str:
+    firebase_key = json.loads(firebase_key_str)
+    cred = credentials.Certificate(firebase_key)
+else:
+    cred = credentials.Certificate('firebase-key.json')
+
+if not firebase_admin._apps:
+    firebase_admin.initialize_app(cred)
 db_firebase = firestore.client()
 
-import os
-instance_path = os.environ.get('INSTANCE_PATH', '/tmp')
+instance_path = os.environ.get('INSTANCE_PATH', os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance'))
 app = Flask(__name__, instance_path=instance_path)
 app.config['SECRET_KEY'] = 'ids-secret-key-2026'
-import os
+
 database_url = os.environ.get('DATABASE_URL', None)
 if database_url:
     if database_url.startswith('mysql://'):
         database_url = database_url.replace('mysql://', 'mysql+pymysql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 else:
-    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:////tmp/ids.db'
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(os.path.dirname(os.path.abspath(__file__)), 'ids.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 CORS(app)
@@ -64,7 +70,7 @@ def login():
         password = data.get('password')
         user     = User.query.filter_by(username=username, is_active=True).first()
         if user and check_password_hash(user.password_hash, password):
-            session['user_id'] = user.user_id
+            session['user_id']  = user.user_id
             session['username'] = user.username
             session['role']     = user.role
             user.last_login_at  = datetime.utcnow()
@@ -118,7 +124,7 @@ def receive_packet():
     if not data:
         return jsonify({'error': 'No data'}), 400
 
-    # Save to database
+    # Save to SQLite
     log = TrafficLog(
         src_ip        = data.get('src_ip'),
         dst_ip        = data.get('dst_ip'),
@@ -133,36 +139,36 @@ def receive_packet():
     db.session.add(log)
     db.session.commit()
 
-   # Save to Firebase
-doc_ref = db_firebase.collection('traffic_logs').add({
-    'src_ip':      data.get('src_ip'),
-    'dst_ip':      data.get('dst_ip'),
-    'protocol':    data.get('protocol'),
-    'length':      data.get('length'),
-    'label':       data.get('label'),
-    'confidence':  data.get('confidence'),
-    'attack_type': data.get('attack_type'),
-    'timestamp':   firestore.SERVER_TIMESTAMP
-})
-
-# Update counter
-counter_ref = db_firebase.collection('counters').document('stats')
-counter_doc = counter_ref.get()
-if counter_doc.exists:
-    current = counter_doc.to_dict()
-    counter_ref.update({
-        'total': current.get('total', 0) + 1,
-        'malicious': current.get('malicious', 0) + (1 if data.get('label') == 'MALICIOUS' else 0)
-    })
-else:
-    counter_ref.set({
-        'total': 1,
-        'malicious': 1 if data.get('label') == 'MALICIOUS' else 0,
-        'alerts': 0,
-        'blocked': 0
+    # Save to Firebase
+    db_firebase.collection('traffic_logs').add({
+        'src_ip':      data.get('src_ip'),
+        'dst_ip':      data.get('dst_ip'),
+        'protocol':    data.get('protocol'),
+        'length':      data.get('length'),
+        'label':       data.get('label'),
+        'confidence':  data.get('confidence'),
+        'attack_type': data.get('attack_type'),
+        'timestamp':   firestore.SERVER_TIMESTAMP
     })
 
-    # If malicious save to alerts collection
+    # Update counter
+    counter_ref = db_firebase.collection('counters').document('stats')
+    counter_doc = counter_ref.get()
+    if counter_doc.exists:
+        current = counter_doc.to_dict()
+        counter_ref.update({
+            'total':     current.get('total', 0) + 1,
+            'malicious': current.get('malicious', 0) + (1 if data.get('label') == 'MALICIOUS' else 0)
+        })
+    else:
+        counter_ref.set({
+            'total':    1,
+            'malicious': 1 if data.get('label') == 'MALICIOUS' else 0,
+            'alerts':   0,
+            'blocked':  0
+        })
+
+    # If malicious save to alerts
     if data.get('label') == 'MALICIOUS':
         db_firebase.collection('alerts').add({
             'src_ip':      data.get('src_ip'),
@@ -172,23 +178,9 @@ else:
             'status':      'new',
             'timestamp':   firestore.SERVER_TIMESTAMP
         })
-
-        if data.get('label') == 'MALICIOUS':
-    db_firebase.collection('alerts').add({
-        'src_ip':      data.get('src_ip'),
-        'dst_ip':      data.get('dst_ip'),
-        'confidence':  data.get('confidence'),
-        'attack_type': data.get('attack_type'),
-        'status':      'new',
-        'timestamp':   firestore.SERVER_TIMESTAMP
-    })
-    # Update alert counter
-    db_firebase.collection('counters').document('stats').update({
-        'alerts': firestore.Increment(1)
-    })
-
-    # If malicious create alert
-    if data.get('label') == 'MALICIOUS':
+        counter_ref.update({
+            'alerts': firestore.Increment(1)
+        })
         alert = Alert(
             log_id      = log.log_id,
             severity    = 'high' if data.get('confidence', 0) > 0.9 else 'medium',
@@ -199,9 +191,7 @@ else:
         db.session.add(alert)
         db.session.commit()
 
-    # Emit to dashboard via WebSocket
     socketio.emit('new_packet', data)
-
     return jsonify({'success': True, 'log_id': log.log_id})
 
 @app.route('/api/stats')
@@ -229,26 +219,36 @@ def get_stats():
             'new_alerts': 0,
             'blocked_ips': 0
         })
-    
+
 @app.route('/api/logs')
 def get_logs():
     try:
         logs = db_firebase.collection('traffic_logs')\
             .order_by('timestamp', direction=firestore.Query.DESCENDING)\
-            .limit(100).get()
-        return jsonify([{
-            'log_id':      i,
-            'captured_at': l.to_dict().get('timestamp').strftime('%Y-%m-%d %H:%M:%S') if l.to_dict().get('timestamp') else '',
-            'src_ip':      l.to_dict().get('src_ip'),
-            'dst_ip':      l.to_dict().get('dst_ip'),
-            'src_port':    l.to_dict().get('src_port', 0),
-            'dst_port':    l.to_dict().get('dst_port', 0),
-            'protocol':    l.to_dict().get('protocol'),
-            'length':      l.to_dict().get('length'),
-            'prediction':  l.to_dict().get('label'),
-            'confidence':  l.to_dict().get('confidence')
-        } for i, l in enumerate(logs)])
+            .limit(50).get()
+        result = []
+        for i, l in enumerate(logs):
+            d = l.to_dict()
+            try:
+                ts = d.get('timestamp')
+                captured_at = ts.strftime('%Y-%m-%d %H:%M:%S') if ts else ''
+            except:
+                captured_at = ''
+            result.append({
+                'log_id':      i,
+                'captured_at': captured_at,
+                'src_ip':      d.get('src_ip', ''),
+                'dst_ip':      d.get('dst_ip', ''),
+                'src_port':    d.get('src_port', 0),
+                'dst_port':    d.get('dst_port', 0),
+                'protocol':    d.get('protocol', ''),
+                'length':      d.get('length', 0),
+                'prediction':  d.get('label', 'Normal'),
+                'confidence':  d.get('confidence', 0)
+            })
+        return jsonify(result)
     except Exception as e:
+        print(f"Logs error: {e}")
         return jsonify([])
 
 @app.route('/api/alerts')
@@ -256,17 +256,27 @@ def get_alerts():
     try:
         alerts = db_firebase.collection('alerts')\
             .order_by('timestamp', direction=firestore.Query.DESCENDING)\
-            .limit(100).get()
-        return jsonify([{
-            'alert_id':    i,
-            'created_at':  a.to_dict().get('timestamp').strftime('%Y-%m-%d %H:%M:%S') if a.to_dict().get('timestamp') else '',
-            'severity':    'high' if a.to_dict().get('confidence', 0) > 0.9 else 'medium',
-            'title':       f"Malicious traffic from {a.to_dict().get('src_ip')}",
-            'description': f"Attack: {a.to_dict().get('attack_type')} | Confidence: {a.to_dict().get('confidence', 0):.2f}",
-            'status':      a.to_dict().get('status', 'new'),
-            'log_id':      i
-        } for i, a in enumerate(alerts)])
+            .limit(50).get()
+        result = []
+        for i, a in enumerate(alerts):
+            d = a.to_dict()
+            try:
+                ts = d.get('timestamp')
+                created_at = ts.strftime('%Y-%m-%d %H:%M:%S') if ts else ''
+            except:
+                created_at = ''
+            result.append({
+                'alert_id':    i,
+                'created_at':  created_at,
+                'severity':    'high' if d.get('confidence', 0) > 0.9 else 'medium',
+                'title':       f"Malicious traffic from {d.get('src_ip', '')}",
+                'description': f"Attack: {d.get('attack_type', '')} | Confidence: {d.get('confidence', 0):.2f}",
+                'status':      d.get('status', 'new'),
+                'log_id':      i
+            })
+        return jsonify(result)
     except Exception as e:
+        print(f"Alerts error: {e}")
         return jsonify([])
 
 @app.route('/api/alerts/<int:alert_id>/acknowledge', methods=['POST'])
@@ -280,8 +290,8 @@ def acknowledge_alert(alert_id):
 
 @app.route('/api/alerts/<int:alert_id>/resolve', methods=['POST'])
 def resolve_alert(alert_id):
-    alert = Alert.query.get_or_404(alert_id)
-    alert.status      = 'resolved'
+    alert            = Alert.query.get_or_404(alert_id)
+    alert.status     = 'resolved'
     alert.resolved_at = datetime.utcnow()
     db.session.commit()
     return jsonify({'success': True})
@@ -317,16 +327,23 @@ def add_blocklist():
     db.session.commit()
     return jsonify({'success': True})
 
+@app.route('/api/blocklist/<int:block_id>', methods=['DELETE'])
+def delete_blocklist(block_id):
+    block = Blocklist.query.get_or_404(block_id)
+    block.is_active = False
+    db.session.commit()
+    return jsonify({'success': True})
+
 @app.route('/api/users', methods=['GET'])
 def get_users():
     users = User.query.all()
     return jsonify([{
-        'user_id':   u.user_id,
-        'username':  u.username,
-        'email':     u.email,
-        'role':      u.role,
-        'is_active': u.is_active,
-        'created_at': u.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+        'user_id':      u.user_id,
+        'username':     u.username,
+        'email':        u.email,
+        'role':         u.role,
+        'is_active':    u.is_active,
+        'created_at':   u.created_at.strftime('%Y-%m-%d %H:%M:%S'),
         'last_login_at': u.last_login_at.strftime('%Y-%m-%d %H:%M:%S') if u.last_login_at else 'Never'
     } for u in users])
 
@@ -342,6 +359,13 @@ def add_user():
         role          = data.get('role', 'viewer')
     )
     db.session.add(user)
+    db.session.commit()
+    return jsonify({'success': True})
+
+@app.route('/api/users/<int:user_id>/deactivate', methods=['POST'])
+def deactivate_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_active = False
     db.session.commit()
     return jsonify({'success': True})
 
