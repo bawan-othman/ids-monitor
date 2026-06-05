@@ -42,21 +42,18 @@ socketio = SocketIO(app, cors_allowed_origins="*")
 
 # ── Create tables and default admin ──────────────────
 with app.app_context():
-    try:                                                              # ← MODIFIED
-        db.create_all()
-        if not User.query.filter_by(username='admin').first():
-            admin = User(
-                username='admin',
-                email='admin@ids.local',
-                password_hash=generate_password_hash('admin123'),
-                role='admin',
-                is_active=True
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("Admin user created!")
-    except Exception as e:                                           # ← MODIFIED
-        print(f"Database setup skipped: {e}")                        # ← MODIFIED
+    db.create_all()
+    if not User.query.filter_by(username='admin').first():
+        admin = User(
+            username='admin',
+            email='admin@ids.local',
+            password_hash=generate_password_hash('admin123'),
+            role='admin',
+            is_active=True
+        )
+        db.session.add(admin)
+        db.session.commit()
+        print("Admin user created!")
 
 # ── Auth Routes ───────────────────────────────────────
 @app.route('/')
