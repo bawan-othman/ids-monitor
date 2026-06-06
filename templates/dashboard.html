@@ -45,7 +45,8 @@
 </div>
 
 <!-- Charts -->
-<div class="charts-grid" style="grid-template-columns: 1fr 1.6fr 1fr;">  <div class="chart-card">
+<div class="charts-grid" style="grid-template-columns: 1fr 1.6fr 1fr;">
+  <div class="chart-card">
     <div class="chart-header">
       <div>
         <div class="chart-title">Traffic Distribution</div>
@@ -69,17 +70,32 @@
   </div>
   <div class="chart-card">
     <div class="chart-header">
-        <div>
-            <div class="chart-title">Top Protocols</div>
-            <div class="chart-subtitle">Traffic by protocol type</div>
-        </div>
+      <div>
+        <div class="chart-title">Top Protocols</div>
+        <div class="chart-subtitle">Traffic by protocol type</div>
+      </div>
     </div>
     <canvas id="protocolChart" height="200"></canvas>
+  </div>
 </div>
+
+<!-- Attack World Map -->
+<div class="card" style="margin-top:1.5rem;">
+  <div class="card-header">
+    <div class="card-title">🌍 Attack Origin Map</div>
+    <div class="card-actions">
+      <div class="live-indicator"><div class="pulse-dot" style="background:var(--accent-red)"></div> LIVE</div>
+    </div>
+  </div>
+  <div id="attackMap" style="height:400px; width:100%; border-radius:8px; overflow:hidden;"></div>
+  <div style="padding:0.75rem 1rem; display:flex; gap:1.5rem; font-size:0.75rem; color:#64748b;">
+    <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff3b5c;margin-right:6px;"></span>Malicious</div>
+    <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00d4ff;margin-right:6px;"></span>Normal</div>
+  </div>
 </div>
 
 <!-- Recent Traffic -->
-<div class="card">
+<div class="card" style="margin-top:1.5rem;">
   <div class="card-header">
     <div class="card-title">Recent Traffic</div>
     <div class="card-actions">
@@ -107,8 +123,12 @@
 {% endblock %}
 
 {% block extra_scripts %}
+<!-- Leaflet.js for map -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
 <script>
-  // Donut chart
+  // ── Donut chart ───────────────────────────────────
   window.donutChart = new Chart(document.getElementById('donutChart'), {
     type: 'doughnut',
     data: {
@@ -137,7 +157,7 @@
     }
   });
 
-  // Trend chart
+  // ── Trend chart ───────────────────────────────────
   const trendLabels = [];
   const trendNormal = [];
   const trendBad    = [];
@@ -151,23 +171,22 @@
           data: trendNormal,
           borderColor: 'var(--accent-green)',
           backgroundColor: 'rgba(0,255,136,0.06)',
-          fill: true, tension: 0.4, pointRadius: 2,
-          borderWidth: 1.5
+          fill: true, tension: 0.4, pointRadius: 2, borderWidth: 1.5
         },
         {
           label: 'Malicious',
           data: trendBad,
           borderColor: 'var(--accent-red)',
           backgroundColor: 'rgba(255,59,92,0.06)',
-          fill: true, tension: 0.4, pointRadius: 2,
-          borderWidth: 1.5
+          fill: true, tension: 0.4, pointRadius: 2, borderWidth: 1.5
         }
       ]
     },
     options: {
       responsive: true,
       animation: { duration: 200 },
-      plugins: { legend: { display: false },
+      plugins: {
+        legend: { display: false },
         tooltip: {
           backgroundColor: 'rgba(15,21,32,0.95)',
           borderColor: 'rgba(255,255,255,0.1)',
@@ -181,15 +200,103 @@
     }
   });
 
-  // WebSocket live update
-socket.on('new_packet', data => {
+  // ── Protocol chart ────────────────────────────────
+  const protocolCanvas = document.getElementById('protocolChart');
+  const protocolChart = new Chart(protocolCanvas, {
+    type: 'doughnut',
+    data: {
+      labels: ['TCP', 'UDP', 'ICMP', 'Other'],
+      datasets: [{
+        data: [0, 0, 0, 0],
+        backgroundColor: [
+          'rgba(0,212,255,0.7)',
+          'rgba(255,140,66,0.7)',
+          'rgba(0,255,136,0.7)',
+          'rgba(124,58,237,0.7)'
+        ],
+        borderColor: [
+          'var(--accent-cyan)',
+          'var(--accent-orange)',
+          'var(--accent-green)',
+          '#a78bfa'
+        ],
+        borderWidth: 1
+      }]
+    },
+    options: {
+      responsive: true,
+      cutout: '72%',
+      plugins: {
+        legend: {
+          position: 'right',
+          labels: {
+            color: '#94a3b8',
+            font: { family: "'Space Mono'" },
+            padding: 12
+          }
+        }
+      }
+    }
+  });
+
+  // ── World Map ─────────────────────────────────────
+  const map = L.map('attackMap', {
+    center: [20, 0],
+    zoom: 2,
+    zoomControl: true,
+    attributionControl: false
+  });
+
+  // Dark tile layer
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    maxZoom: 19
+  }).addTo(map);
+
+  // Store markers to avoid duplicates
+  const mapMarkers = {};
+
+  function addMapMarker(srcIp, dstIp, isMalicious) {
+    // Use ipapi.co to get location (free, no key needed)
+    const ip = srcIp.startsWith('192.168') || srcIp.startsWith('10.') || srcIp.startsWith('172.') ? dstIp : srcIp;
+    if (!ip || ip.startsWith('192.168') || ip.startsWith('10.') || ip.startsWith('172.') || ip === '8.8.8.8') return;
+    if (mapMarkers[ip]) return; // already plotted
+
+    fetch(`https://ipapi.co/${ip}/json/`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.latitude || !data.longitude) return;
+        const color  = isMalicious ? '#ff3b5c' : '#00d4ff';
+        const marker = L.circleMarker([data.latitude, data.longitude], {
+          radius:      isMalicious ? 8 : 5,
+          fillColor:   color,
+          color:       color,
+          weight:      1,
+          opacity:     0.9,
+          fillOpacity: 0.7
+        }).addTo(map);
+        marker.bindPopup(`
+          <div style="font-family:monospace; font-size:12px; color:#fff; background:#0f1520; padding:8px; border-radius:6px;">
+            <b style="color:${color}">${isMalicious ? '⚠ MALICIOUS' : '✓ Normal'}</b><br>
+            IP: ${ip}<br>
+            ${data.city ? data.city + ', ' : ''}${data.country_name || ''}
+          </div>
+        `, { className: 'dark-popup' });
+        mapMarkers[ip] = marker;
+      })
+      .catch(() => {});
+  }
+
+  // ── WebSocket live update ─────────────────────────
+  socket.on('new_packet', data => {
     loadStats();
     loadLogs();
     updateTrend();
     updateProtocolChart();
-});
+    addMapMarker(data.src_ip, data.dst_ip, data.label === 'MALICIOUS');
+  });
 
-async function updateTrend() {
+  // ── Trend update ──────────────────────────────────
+  async function updateTrend() {
     const res  = await fetch('/api/logs');
     const logs = await res.json();
     if (logs.length === 0) return;
@@ -199,82 +306,58 @@ async function updateTrend() {
     trendBad.length    = 0;
     let n = 0, m = 0;
     last.forEach(l => {
-        trendLabels.push(l.captured_at.split(' ')[1]);
-        if (l.prediction === 'MALICIOUS') m++;
-        else n++;
-        trendNormal.push(n);
-        trendBad.push(m);
+      trendLabels.push(l.captured_at.split(' ')[1]);
+      if (l.prediction === 'MALICIOUS') m++;
+      else n++;
+      trendNormal.push(n);
+      trendBad.push(m);
     });
     trendChart.update();
-}
+  }
 
-loadStats();
-loadLogs();
-updateTrend();
-updateProtocolChart();
-setInterval(() => { loadStats(); loadLogs(); updateTrend(); updateProtocolChart(); }, 3000);
-
-  // Protocol Chart
-const protocolCanvas = document.getElementById('protocolChart');
-if (!protocolCanvas) { console.error('Protocol chart canvas not found'); }
-const protocolChart = new Chart(protocolCanvas, {
-    type: 'doughnut',
-    data: {
-        labels: ['TCP', 'UDP', 'ICMP', 'Other'],
-        datasets: [{
-            data: [0, 0, 0, 0],
-            backgroundColor: [
-                'rgba(0,212,255,0.7)',
-                'rgba(255,140,66,0.7)',
-                'rgba(0,255,136,0.7)',
-                'rgba(124,58,237,0.7)'
-            ],
-            borderColor: [
-                'var(--accent-cyan)',
-                'var(--accent-orange)',
-                'var(--accent-green)',
-                '#a78bfa'
-            ],
-            borderWidth: 1
-        }]
-    },
-    options: {
-        responsive: true,
-        cutout: '72%',
-        plugins: {
-            legend: {
-                position: 'right',
-                labels: {
-                    color: '#94a3b8',
-                    font: { family: "'Space Mono'" },
-                    padding: 12
-                }
-            }
-        }
-    }
-});
-
-// Update protocol chart from logs
-async function updateProtocolChart() {
+  // ── Protocol chart update ─────────────────────────
+  async function updateProtocolChart() {
     try {
-        const res  = await fetch('/api/logs');
-        const logs = await res.json();
-        const counts = { tcp: 0, udp: 0, icmp: 0, other: 0 };
-        logs.forEach(l => {
-            const p = (l.protocol || '').toLowerCase();
-            if (p.includes('tcp'))       counts.tcp++;
-            else if (p.includes('udp'))  counts.udp++;
-            else if (p.includes('icmp')) counts.icmp++;
-            else                         counts.other++;
-        });
-        protocolChart.data.datasets[0].data = [
-            counts.tcp, counts.udp, counts.icmp, counts.other
-        ];
-        protocolChart.update();
+      const res  = await fetch('/api/logs');
+      const logs = await res.json();
+      const counts = { tcp: 0, udp: 0, icmp: 0, other: 0 };
+      logs.forEach(l => {
+        const p = (l.protocol || '').toLowerCase();
+        if (p.includes('tcp'))       counts.tcp++;
+        else if (p.includes('udp'))  counts.udp++;
+        else if (p.includes('icmp')) counts.icmp++;
+        else                         counts.other++;
+      });
+      protocolChart.data.datasets[0].data = [counts.tcp, counts.udp, counts.icmp, counts.other];
+      protocolChart.update();
     } catch(e) {}
-}
+  }
 
-updateProtocolChart();
-setInterval(updateProtocolChart, 5000);
+  // ── Load existing logs onto map ───────────────────
+  async function loadMapMarkers() {
+    try {
+      const res  = await fetch('/api/logs');
+      const logs = await res.json();
+      logs.slice(0, 20).forEach(l => {
+        addMapMarker(l.src_ip, l.dst_ip, l.prediction === 'MALICIOUS');
+      });
+    } catch(e) {}
+  }
+
+  // ── Initial load ──────────────────────────────────
+  loadStats();
+  loadLogs();
+  updateTrend();
+  updateProtocolChart();
+  loadMapMarkers();
+
+  setInterval(() => {
+    loadStats();
+    loadLogs();
+    updateTrend();
+    updateProtocolChart();
+  }, 60000);
+
+  setInterval(updateProtocolChart, 60000);
 </script>
 {% endblock %}
