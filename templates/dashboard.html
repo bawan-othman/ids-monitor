@@ -45,8 +45,7 @@
 </div>
 
 <!-- Charts -->
-<div class="charts-grid">
-  <div class="chart-card">
+<div class="charts-grid" style="grid-template-columns: 1fr 1.6fr 1fr;">  <div class="chart-card">
     <div class="chart-header">
       <div>
         <div class="chart-title">Traffic Distribution</div>
@@ -183,26 +182,14 @@
   });
 
   // WebSocket live update
-  socket.on('new_packet', data => {
+socket.on('new_packet', data => {
     loadStats();
     loadLogs();
-    const t = new Date().toLocaleTimeString('en-US', { hour12: false });
-    trendLabels.push(t);
-    if (data.label === 'MALICIOUS') {
-      trendBad.push((trendBad[trendBad.length-1] || 0) + 1);
-      trendNormal.push(trendNormal[trendNormal.length-1] || 0);
-    } else {
-      trendNormal.push((trendNormal[trendNormal.length-1] || 0) + 1);
-      trendBad.push(trendBad[trendBad.length-1] || 0);
-    }
-    if (trendLabels.length > 24) {
-      trendLabels.shift(); trendNormal.shift(); trendBad.shift();
-    }
-    trendChart.update();
-  });
+    updateTrend();
+    updateProtocolChart();
+});
 
-  loadStats();
-  loadLogs();async function updateTrend() {
+async function updateTrend() {
     const res  = await fetch('/api/logs');
     const logs = await res.json();
     if (logs.length === 0) return;
@@ -221,6 +208,73 @@
     trendChart.update();
 }
 
-  setInterval(() => { loadStats(); loadLogs(); updateTrend(); }, 3000);
+loadStats();
+loadLogs();
+updateTrend();
+updateProtocolChart();
+setInterval(() => { loadStats(); loadLogs(); updateTrend(); updateProtocolChart(); }, 3000);
+
+  // Protocol Chart
+const protocolCanvas = document.getElementById('protocolChart');
+if (!protocolCanvas) { console.error('Protocol chart canvas not found'); }
+const protocolChart = new Chart(protocolCanvas, {
+    type: 'doughnut',
+    data: {
+        labels: ['TCP', 'UDP', 'ICMP', 'Other'],
+        datasets: [{
+            data: [0, 0, 0, 0],
+            backgroundColor: [
+                'rgba(0,212,255,0.7)',
+                'rgba(255,140,66,0.7)',
+                'rgba(0,255,136,0.7)',
+                'rgba(124,58,237,0.7)'
+            ],
+            borderColor: [
+                'var(--accent-cyan)',
+                'var(--accent-orange)',
+                'var(--accent-green)',
+                '#a78bfa'
+            ],
+            borderWidth: 1
+        }]
+    },
+    options: {
+        responsive: true,
+        cutout: '72%',
+        plugins: {
+            legend: {
+                position: 'right',
+                labels: {
+                    color: '#94a3b8',
+                    font: { family: "'Space Mono'" },
+                    padding: 12
+                }
+            }
+        }
+    }
+});
+
+// Update protocol chart from logs
+async function updateProtocolChart() {
+    try {
+        const res  = await fetch('/api/logs');
+        const logs = await res.json();
+        const counts = { tcp: 0, udp: 0, icmp: 0, other: 0 };
+        logs.forEach(l => {
+            const p = (l.protocol || '').toLowerCase();
+            if (p.includes('tcp'))       counts.tcp++;
+            else if (p.includes('udp'))  counts.udp++;
+            else if (p.includes('icmp')) counts.icmp++;
+            else                         counts.other++;
+        });
+        protocolChart.data.datasets[0].data = [
+            counts.tcp, counts.udp, counts.icmp, counts.other
+        ];
+        protocolChart.update();
+    } catch(e) {}
+}
+
+updateProtocolChart();
+setInterval(updateProtocolChart, 5000);
 </script>
 {% endblock %}
