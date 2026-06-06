@@ -87,10 +87,11 @@
       <div class="live-indicator"><div class="pulse-dot" style="background:var(--accent-red)"></div> LIVE</div>
     </div>
   </div>
-  <div id="attackMap" style="height:400px; width:100%; border-radius:8px; overflow:hidden;"></div>
+  <div id="attackMap" style="height:420px; width:100%; border-radius:8px; overflow:hidden;"></div>
   <div style="padding:0.75rem 1rem; display:flex; gap:1.5rem; font-size:0.75rem; color:#64748b;">
-    <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff3b5c;margin-right:6px;"></span>Malicious</div>
-    <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00d4ff;margin-right:6px;"></span>Normal</div>
+    <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#ff3b5c;margin-right:6px;"></span>Malicious Source</div>
+    <div><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#00d4ff;margin-right:6px;"></span>Normal Source</div>
+    <div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:#ffffff;border:2px solid #00d4ff;margin-right:6px;"></span>Victim (Iraq)</div>
   </div>
 </div>
 
@@ -123,9 +124,23 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<!-- Leaflet.js for map -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+
+<style>
+.leaflet-popup-content-wrapper {
+  background: #0f1520 !important;
+  border: 1px solid rgba(255,255,255,0.1) !important;
+  border-radius: 8px !important;
+  color: #fff !important;
+}
+.leaflet-popup-tip { background: #0f1520 !important; }
+.leaflet-popup-close-button { color: #64748b !important; }
+@keyframes pulse-ring {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+</style>
 
 <script>
   // ── Donut chart ───────────────────────────────────
@@ -151,7 +166,7 @@
           borderColor: 'rgba(255,255,255,0.1)',
           borderWidth: 1,
           titleFont: { family: "'Space Mono'" },
-          bodyFont: { family: "'Space Mono'" }
+          bodyFont:  { family: "'Space Mono'" }
         }
       }
     }
@@ -201,8 +216,7 @@
   });
 
   // ── Protocol chart ────────────────────────────────
-  const protocolCanvas = document.getElementById('protocolChart');
-  const protocolChart = new Chart(protocolCanvas, {
+  const protocolChart = new Chart(document.getElementById('protocolChart'), {
     type: 'doughnut',
     data: {
       labels: ['TCP', 'UDP', 'ICMP', 'Other'],
@@ -214,12 +228,7 @@
           'rgba(0,255,136,0.7)',
           'rgba(124,58,237,0.7)'
         ],
-        borderColor: [
-          'var(--accent-cyan)',
-          'var(--accent-orange)',
-          'var(--accent-green)',
-          '#a78bfa'
-        ],
+        borderColor: ['var(--accent-cyan)', 'var(--accent-orange)', 'var(--accent-green)', '#a78bfa'],
         borderWidth: 1
       }]
     },
@@ -229,59 +238,115 @@
       plugins: {
         legend: {
           position: 'right',
-          labels: {
-            color: '#94a3b8',
-            font: { family: "'Space Mono'" },
-            padding: 12
-          }
+          labels: { color: '#94a3b8', font: { family: "'Space Mono'" }, padding: 12 }
         }
       }
     }
   });
 
   // ── World Map ─────────────────────────────────────
+  const VICTIM_LAT = 36.1901;
+  const VICTIM_LNG = 44.0094;
+
   const map = L.map('attackMap', {
-    center: [20, 0],
+    center: [30, 20],
     zoom: 2,
     zoomControl: true,
     attributionControl: false
   });
 
-  // Dark tile layer
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     maxZoom: 19
   }).addTo(map);
 
-  // Store markers to avoid duplicates
-  const mapMarkers = {};
+  // Victim marker (Iraq - Sulaymaniyah)
+  const victimIcon = L.divIcon({
+    html: `<div style="
+      width:18px; height:18px; border-radius:50%;
+      background:#00d4ff; border:3px solid #fff;
+      box-shadow:0 0 12px #00d4ff, 0 0 24px rgba(0,212,255,0.4);
+    "></div>`,
+    className: '',
+    iconSize: [18, 18],
+    iconAnchor: [9, 9]
+  });
+
+  L.marker([VICTIM_LAT, VICTIM_LNG], { icon: victimIcon })
+    .addTo(map)
+    .bindPopup(`
+      <div style="font-family:monospace; font-size:12px; line-height:1.6;">
+        <b style="color:#00d4ff">🛡 IDS SENSOR / VICTIM</b><br>
+        IP: 192.168.0.111<br>
+        Sulaymaniyah, Iraq<br>
+        <span style="color:#64748b">Raspberry Pi 5</span>
+      </div>
+    `);
+
+  // Store plotted IPs to avoid duplicates
+  const plottedIPs = {};
+  const attackLines = [];
+
+  function isPrivateIP(ip) {
+    return !ip ||
+      ip.startsWith('192.168.') ||
+      ip.startsWith('10.') ||
+      ip.startsWith('172.') ||
+      ip === '8.8.8.8' ||
+      ip === '8.8.4.4' ||
+      ip.startsWith('127.');
+  }
+
+  function addAttackLine(lat, lng, isMalicious) {
+    const color = isMalicious ? '#ff3b5c' : '#00d4ff';
+    const line = L.polyline(
+      [[lat, lng], [VICTIM_LAT, VICTIM_LNG]],
+      { color: color, weight: 1, opacity: 0.4, dashArray: '4 6' }
+    ).addTo(map);
+    attackLines.push(line);
+    // Keep only last 30 lines
+    if (attackLines.length > 30) {
+      map.removeLayer(attackLines.shift());
+    }
+  }
 
   function addMapMarker(srcIp, dstIp, isMalicious) {
-    // Use ipapi.co to get location (free, no key needed)
-    const ip = srcIp.startsWith('192.168') || srcIp.startsWith('10.') || srcIp.startsWith('172.') ? dstIp : srcIp;
-    if (!ip || ip.startsWith('192.168') || ip.startsWith('10.') || ip.startsWith('172.') || ip === '8.8.8.8') return;
-    if (mapMarkers[ip]) return; // already plotted
+    const ip = isPrivateIP(srcIp) ? dstIp : srcIp;
+    if (isPrivateIP(ip)) return;
+    if (plottedIPs[ip]) {
+      // Just draw a new line for repeat attackers
+      const existing = plottedIPs[ip];
+      if (isMalicious) addAttackLine(existing.lat, existing.lng, true);
+      return;
+    }
 
     fetch(`https://ipapi.co/${ip}/json/`)
       .then(r => r.json())
       .then(data => {
         if (!data.latitude || !data.longitude) return;
-        const color  = isMalicious ? '#ff3b5c' : '#00d4ff';
-        const marker = L.circleMarker([data.latitude, data.longitude], {
-          radius:      isMalicious ? 8 : 5,
+        const lat   = data.latitude;
+        const lng   = data.longitude;
+        const color = isMalicious ? '#ff3b5c' : '#00d4ff';
+        const size  = isMalicious ? 9 : 5;
+
+        const marker = L.circleMarker([lat, lng], {
+          radius:      size,
           fillColor:   color,
           color:       color,
           weight:      1,
           opacity:     0.9,
-          fillOpacity: 0.7
+          fillOpacity: 0.75
         }).addTo(map);
+
         marker.bindPopup(`
-          <div style="font-family:monospace; font-size:12px; color:#fff; background:#0f1520; padding:8px; border-radius:6px;">
+          <div style="font-family:monospace; font-size:12px; line-height:1.6;">
             <b style="color:${color}">${isMalicious ? '⚠ MALICIOUS' : '✓ Normal'}</b><br>
             IP: ${ip}<br>
-            ${data.city ? data.city + ', ' : ''}${data.country_name || ''}
+            ${data.city ? data.city + ', ' : ''}${data.country_name || 'Unknown'}
           </div>
-        `, { className: 'dark-popup' });
-        mapMarkers[ip] = marker;
+        `);
+
+        plottedIPs[ip] = { lat, lng };
+        if (isMalicious) addAttackLine(lat, lng, true);
       })
       .catch(() => {});
   }
@@ -295,50 +360,48 @@
     addMapMarker(data.src_ip, data.dst_ip, data.label === 'MALICIOUS');
   });
 
-  // ── Trend update ──────────────────────────────────
+  // ── Data update functions ─────────────────────────
   async function updateTrend() {
     const res  = await fetch('/api/logs');
     const logs = await res.json();
-    if (logs.length === 0) return;
+    if (!logs.length) return;
     const last = logs.slice(0, 20).reverse();
     trendLabels.length = 0;
     trendNormal.length = 0;
     trendBad.length    = 0;
     let n = 0, m = 0;
     last.forEach(l => {
-      trendLabels.push(l.captured_at.split(' ')[1]);
-      if (l.prediction === 'MALICIOUS') m++;
-      else n++;
+      trendLabels.push(l.captured_at ? l.captured_at.split(' ')[1] : '');
+      if (l.prediction === 'MALICIOUS') m++; else n++;
       trendNormal.push(n);
       trendBad.push(m);
     });
     trendChart.update();
   }
 
-  // ── Protocol chart update ─────────────────────────
   async function updateProtocolChart() {
     try {
       const res  = await fetch('/api/logs');
       const logs = await res.json();
-      const counts = { tcp: 0, udp: 0, icmp: 0, other: 0 };
+      const c = { tcp: 0, udp: 0, icmp: 0, other: 0 };
       logs.forEach(l => {
         const p = (l.protocol || '').toLowerCase();
-        if (p.includes('tcp'))       counts.tcp++;
-        else if (p.includes('udp'))  counts.udp++;
-        else if (p.includes('icmp')) counts.icmp++;
-        else                         counts.other++;
+        if (p.includes('tcp'))       c.tcp++;
+        else if (p.includes('udp'))  c.udp++;
+        else if (p.includes('icmp')) c.icmp++;
+        else                         c.other++;
       });
-      protocolChart.data.datasets[0].data = [counts.tcp, counts.udp, counts.icmp, counts.other];
+      protocolChart.data.datasets[0].data = [c.tcp, c.udp, c.icmp, c.other];
       protocolChart.update();
     } catch(e) {}
   }
 
-  // ── Load existing logs onto map ───────────────────
   async function loadMapMarkers() {
     try {
       const res  = await fetch('/api/logs');
       const logs = await res.json();
-      logs.slice(0, 20).forEach(l => {
+      // Plot last 30 unique IPs
+      logs.slice(0, 30).forEach(l => {
         addMapMarker(l.src_ip, l.dst_ip, l.prediction === 'MALICIOUS');
       });
     } catch(e) {}
