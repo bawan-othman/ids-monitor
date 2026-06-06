@@ -218,14 +218,103 @@ async function submitAddUser() {
   const password = document.getElementById('newPassword')?.value.trim();
   const role     = document.getElementById('newRole')?.value;
   if (!username || !email || !password) { alert('Please fill all fields'); return; }
-  const res  = await fetch('/api/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username, email, password, role })
+  try {
+    const res  = await fetch('/api/users', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, email, password, role })
+    });
+    const data = await res.json();
+    if (data.success) {
+      closeModal('addUserModal');
+      document.getElementById('newUsername').value = '';
+      document.getElementById('newEmail').value    = '';
+      document.getElementById('newPassword').value = '';
+      loadUsers();
+    } else {
+      alert(data.message || 'Error adding user');
+    }
+  } catch (e) {
+    alert('Network error, please try again');
+  }
+}
+
+// ─── Global Search ────────────────────────────────────────────────────────────
+(function initSearch() {
+  const input = document.getElementById('globalSearch');
+  if (!input) return;
+  let debounce;
+  input.addEventListener('input', () => {
+    clearTimeout(debounce);
+    const q = input.value.trim();
+    if (q.length < 2) { closeSearchDropdown(); return; }
+    debounce = setTimeout(() => performSearch(q), 300);
   });
-  const data = await res.json();
-  if (data.success) { closeModal('addUserModal'); loadUsers(); }
-  else alert(data.message || 'Error adding user');
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Escape') { input.value = ''; closeSearchDropdown(); }
+  });
+  document.addEventListener('click', e => {
+    if (!e.target.closest('.search-wrap')) closeSearchDropdown();
+  });
+})();
+
+async function performSearch(q) {
+  try {
+    const res  = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
+    const data = await res.json();
+    renderSearchDropdown(data);
+  } catch (e) { console.warn('Search error:', e); }
+}
+
+function renderSearchDropdown(data) {
+  let dd = document.getElementById('searchDropdown');
+  if (!dd) {
+    dd = document.createElement('div');
+    dd.id = 'searchDropdown';
+    dd.className = 'search-dropdown';
+    document.querySelector('.search-wrap').appendChild(dd);
+  }
+  const total = data.logs.length + data.alerts.length + data.blocked.length;
+  if (total === 0) {
+    dd.innerHTML = '<div class="search-empty">No results found</div>';
+    dd.style.display = 'block';
+    return;
+  }
+  let html = '';
+  if (data.logs.length) {
+    html += `<div class="search-group-label">Traffic Logs</div>`;
+    html += data.logs.map(l => `
+      <a href="/live" class="search-result-item">
+        <span class="search-result-icon">◉</span>
+        <span class="search-result-main">${l.src_ip} → ${l.dst_ip}</span>
+        <span class="search-result-meta">${l.protocol || '-'} · ${l.prediction === 'MALICIOUS' ? '⚠' : '✓'}</span>
+      </a>`).join('');
+  }
+  if (data.alerts.length) {
+    html += `<div class="search-group-label">Alerts</div>`;
+    html += data.alerts.map(a => `
+      <a href="/alerts" class="search-result-item">
+        <span class="search-result-icon">△</span>
+        <span class="search-result-main">${a.title}</span>
+        <span class="search-result-meta">${a.severity} · ${a.status}</span>
+      </a>`).join('');
+  }
+  if (data.blocked.length) {
+    html += `<div class="search-group-label">Blocklist</div>`;
+    html += data.blocked.map(b => `
+      <a href="/blocklist" class="search-result-item">
+        <span class="search-result-icon">⊘</span>
+        <span class="search-result-main">${b.ip_address}</span>
+        <span class="search-result-meta">${b.reason || 'Manual block'}</span>
+      </a>`).join('');
+  }
+  dd.innerHTML = html;
+  dd.style.display = 'block';
+}
+
+function closeSearchDropdown() {
+  const dd = document.getElementById('searchDropdown');
+  if (dd) dd.style.display = 'none';
 }
 
 // Chart defaults

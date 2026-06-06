@@ -334,6 +334,43 @@ def delete_blocklist(block_id):
     db.session.commit()
     return jsonify({'success': True})
 
+@app.route('/api/search')
+def search():
+    if 'user_id' not in session:
+        return jsonify({'error': 'Unauthorized'}), 401
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'logs': [], 'alerts': [], 'blocked': []})
+    pattern = f'%{q}%'
+    logs = TrafficLog.query.filter(
+        db.or_(
+            TrafficLog.src_ip.like(pattern),
+            TrafficLog.dst_ip.like(pattern),
+            TrafficLog.protocol.like(pattern),
+            TrafficLog.attack_type.like(pattern)
+        )
+    ).order_by(TrafficLog.captured_at.desc()).limit(5).all()
+    alert_results = Alert.query.filter(
+        db.or_(
+            Alert.title.like(pattern),
+            Alert.description.like(pattern)
+        )
+    ).order_by(Alert.created_at.desc()).limit(5).all()
+    blocked = Blocklist.query.filter(
+        db.or_(
+            Blocklist.ip_address.like(pattern),
+            Blocklist.reason.like(pattern)
+        )
+    ).limit(5).all()
+    return jsonify({
+        'logs': [{'log_id': l.log_id, 'src_ip': l.src_ip, 'dst_ip': l.dst_ip,
+                  'protocol': l.protocol, 'prediction': l.prediction} for l in logs],
+        'alerts': [{'alert_id': a.alert_id, 'title': a.title,
+                    'severity': a.severity, 'status': a.status} for a in alert_results],
+        'blocked': [{'block_id': b.block_id, 'ip_address': b.ip_address,
+                     'reason': b.reason} for b in blocked]
+    })
+
 @app.route('/api/users', methods=['GET'])
 def get_users():
     users = User.query.all()
@@ -349,18 +386,29 @@ def get_users():
 
 @app.route('/api/users', methods=['POST'])
 def add_user():
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'success': False, 'message': 'Unauthorized'}), 403
     data = request.get_json()
+    if not data or not data.get('username') or not data.get('email') or not data.get('password'):
+        return jsonify({'success': False, 'message': 'Username, email and password are required'})
     if User.query.filter_by(username=data.get('username')).first():
         return jsonify({'success': False, 'message': 'Username already exists'})
-    user = User(
-        username      = data.get('username'),
-        email         = data.get('email'),
-        password_hash = generate_password_hash(data.get('password', 'changeme123')),
-        role          = data.get('role', 'viewer')
-    )
-    db.session.add(user)
-    db.session.commit()
-    return jsonify({'success': True})
+    if User.query.filter_by(email=data.get('email')).first():
+        return jsonify({'success': False, 'message': 'Email already in use'})
+    try:
+        user = User(
+            username      = data.get('username'),
+            email         = data.get('email'),
+            password_hash = generate_password_hash(data.get('password')),
+            role          = data.get('role', 'viewer'),
+            is_active     = True
+        )
+        db.session.add(user)
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Database error, please try again'})
 
 @app.route('/api/users/<int:user_id>/deactivate', methods=['POST'])
 def deactivate_user(user_id):
