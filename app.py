@@ -83,19 +83,24 @@ def logout():
     session.clear(); return redirect(url_for('login'))
 
 # ── Pages ─────────────────────────────────────────────
-@app.route('/dashboard') @login_required
+@app.route('/dashboard')
+@login_required
 def dashboard(): return render_template('dashboard.html', username=session['username'], role=session['role'])
 
-@app.route('/live') @login_required
+@app.route('/live')
+@login_required
 def live(): return render_template('live.html', username=session['username'], role=session['role'])
 
-@app.route('/alerts') @login_required
+@app.route('/alerts')
+@login_required
 def alerts(): return render_template('alerts.html', username=session['username'], role=session['role'])
 
-@app.route('/blocklist') @login_required
+@app.route('/blocklist')
+@login_required
 def blocklist(): return render_template('blocklist.html', username=session['username'], role=session['role'])
 
-@app.route('/users') @login_required
+@app.route('/users')
+@login_required
 def users():
     if session.get('role') != 'admin': return redirect(url_for('dashboard'))
     return render_template('users.html', username=session['username'], role=session['role'])
