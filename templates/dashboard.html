@@ -414,13 +414,13 @@
   updateProtocolChart();
   loadMapMarkers();
 
-  setInterval(() => {
+ setInterval(() => {
     loadStats();
     loadLogs();
     updateTrend();
     updateProtocolChart();
-  }, 60000);
+}, 10000);
 
-  setInterval(updateProtocolChart, 60000);
+setInterval(updateProtocolChart, 10000);
 </script>
 {% endblock %}

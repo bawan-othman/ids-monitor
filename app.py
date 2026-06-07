@@ -391,6 +391,25 @@ def deactivate_user(user_id):
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False})
+    
+    # ── Monitoring Control ────────────────────────────
+monitoring_command = 'stop'
+
+@app.route('/api/command')
+def get_command():
+    return jsonify({'command': monitoring_command})
+
+@app.route('/api/start', methods=['POST'])
+def start_monitoring():
+    global monitoring_command
+    monitoring_command = 'start'
+    return jsonify({'success': True, 'command': 'start'})
+
+@app.route('/api/stop', methods=['POST'])
+def stop_monitoring():
+    global monitoring_command
+    monitoring_command = 'stop'
+    return jsonify({'success': True, 'command': 'stop'})
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)

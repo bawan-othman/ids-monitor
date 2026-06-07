@@ -21,9 +21,26 @@
     </div>
   </div>
 
-  <div class="monitor-pill">
-    <div class="pulse-dot"></div>
-    MONITORING ACTIVE
+  <!-- Start/Stop Monitoring Button -->
+  <div id="monitorBtn" onclick="toggleMonitoring()" style="
+    margin: 0 1rem 1rem;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    transition: all 0.2s;
+    background: rgba(0,255,136,0.1);
+    border: 1px solid rgba(0,255,136,0.3);
+    color: var(--accent-green);
+  ">
+    <div id="monitorDot" class="pulse-dot" style="background:var(--accent-green)"></div>
+    <span id="monitorText">MONITORING ACTIVE</span>
   </div>
 
   <nav class="sidebar-nav">
@@ -104,7 +121,73 @@
     console.log('%c IDS Monitor connected ', 'background:#00d4ff; color:#000; font-weight:bold');
   });
 
-  // Update sidebar alert badge
+  // ── Monitoring state ──────────────────────────────
+  let isMonitoring = true;
+
+  async function toggleMonitoring() {
+    const btn  = document.getElementById('monitorBtn');
+    const dot  = document.getElementById('monitorDot');
+    const text = document.getElementById('monitorText');
+
+    btn.style.opacity = '0.5';
+    btn.style.pointerEvents = 'none';
+
+    try {
+      const endpoint = isMonitoring ? '/api/stop' : '/api/start';
+      const res  = await fetch(endpoint, { method: 'POST' });
+      const data = await res.json();
+
+      if (data.success) {
+        isMonitoring = !isMonitoring;
+        if (isMonitoring) {
+          btn.style.background  = 'rgba(0,255,136,0.1)';
+          btn.style.borderColor = 'rgba(0,255,136,0.3)';
+          btn.style.color       = 'var(--accent-green)';
+          dot.style.background  = 'var(--accent-green)';
+          text.textContent      = 'MONITORING ACTIVE';
+        } else {
+          btn.style.background  = 'rgba(255,59,92,0.1)';
+          btn.style.borderColor = 'rgba(255,59,92,0.3)';
+          btn.style.color       = 'var(--accent-red)';
+          dot.style.background  = 'var(--accent-red)';
+          text.textContent      = 'START MONITORING';
+        }
+      }
+    } catch(e) {
+      console.error('Toggle failed:', e);
+    }
+
+    btn.style.opacity       = '1';
+    btn.style.pointerEvents = 'auto';
+  }
+
+  // Check current monitoring status on load
+  async function checkMonitoringStatus() {
+    try {
+      const res  = await fetch('/api/command');
+      const data = await res.json();
+      isMonitoring = data.command === 'start';
+      const btn  = document.getElementById('monitorBtn');
+      const dot  = document.getElementById('monitorDot');
+      const text = document.getElementById('monitorText');
+      if (isMonitoring) {
+        btn.style.background  = 'rgba(0,255,136,0.1)';
+        btn.style.borderColor = 'rgba(0,255,136,0.3)';
+        btn.style.color       = 'var(--accent-green)';
+        dot.style.background  = 'var(--accent-green)';
+        text.textContent      = 'MONITORING ACTIVE';
+      } else {
+        btn.style.background  = 'rgba(255,59,92,0.1)';
+        btn.style.borderColor = 'rgba(255,59,92,0.3)';
+        btn.style.color       = 'var(--accent-red)';
+        dot.style.background  = 'var(--accent-red)';
+        text.textContent      = 'START MONITORING';
+      }
+    } catch(e) {}
+  }
+  checkMonitoringStatus();
+
+  // ── Sidebar alert badge ───────────────────────────
   async function updateAlertBadge() {
     try {
       const res  = await fetch('/api/stats');
@@ -112,7 +195,7 @@
       const badge = document.getElementById('sidebarAlertCount');
       if (badge) {
         if (data.new_alerts > 0) {
-          badge.textContent = data.new_alerts;
+          badge.textContent  = data.new_alerts;
           badge.style.display = 'inline';
         } else {
           badge.style.display = 'none';
