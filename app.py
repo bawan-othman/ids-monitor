@@ -343,5 +343,43 @@ def delete_user(uid):
         return jsonify({'success':True})
     except Exception as e: return jsonify({'success':False,'message':str(e)})
 
+    @app.route('/api/export')
+def export_logs():
+    if 'user_id' not in session: return jsonify({'error':'Unauthorized'}), 401
+    from_dt = request.args.get('from')
+    to_dt   = request.args.get('to')
+    filter_ = request.args.get('filter', 'all')
+    try:
+        from datetime import datetime
+        from_ts = datetime.fromisoformat(from_dt)
+        to_ts   = datetime.fromisoformat(to_dt)
+        query   = fdb.collection('traffic_logs')\
+            .order_by('timestamp', direction=firestore.Query.DESCENDING)\
+            .limit(500).get()
+        result = []
+        for d in query:
+            r  = d.to_dict()
+            ts = r.get('timestamp')
+            if not ts: continue
+            if hasattr(ts, 'tzinfo'): ts = ts.replace(tzinfo=None)
+            if not (from_ts <= ts <= to_ts): continue
+            if filter_ != 'all' and r.get('label') != filter_: continue
+            try: captured_at = ts.strftime('%Y-%m-%d %H:%M:%S')
+            except: captured_at = ''
+            result.append({
+                'captured_at': captured_at,
+                'src_ip':      r.get('src_ip',''),
+                'dst_ip':      r.get('dst_ip',''),
+                'protocol':    r.get('protocol',''),
+                'length':      r.get('length',0),
+                'prediction':  r.get('label','Normal'),
+                'confidence':  r.get('confidence',0),
+                'attack_type': r.get('attack_type','-')
+            })
+        return jsonify(result)
+    except Exception as e:
+        print(f"Export error: {e}")
+        return jsonify([])
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
