@@ -7,9 +7,13 @@ from datetime import datetime
 from werkzeug.security import generate_password_hash, check_password_hash
 from collections import deque
 from functools import wraps
-import os, json, threading
+import os, json, threading, smtplib, secrets
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
 import firebase_admin
 from firebase_admin import credentials, firestore
+
+reset_tokens = {}
 
 # ── Firebase ──────────────────────────────────────────
 key = os.environ.get('FIREBASE_KEY', '')
@@ -270,6 +274,75 @@ def reset_password():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'message': 'Email not found in system'})
+    
+    @app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data  = request.get_json()
+    email = data.get('email', '').strip()
+    if not email:
+        return jsonify({'success': False, 'message': 'Email is required'})
+    try:
+        # Check if email exists in Firestore
+        users = fdb.collection('users').where('email', '==', email).limit(1).get()
+        if not users:
+            return jsonify({'success': False, 'message': 'Email not found in system'})
+
+        # Generate reset token
+        token = secrets.token_urlsafe(32)
+        reset_tokens[token] = email
+
+        # Send email
+        reset_link = f"https://ids-monitor.vercel.app/reset/{token}"
+        msg = MIMEMultipart()
+        msg['From']    = os.environ.get('MAIL_EMAIL')
+        msg['To']      = email
+        msg['Subject'] = 'IDS Monitor - Password Reset'
+        msg.attach(MIMEText(f"""
+        <html><body style="font-family:monospace; background:#0f1520; color:#e2e8f0; padding:30px;">
+        <h2 style="color:#00d4ff;">IDS Monitor — Password Reset</h2>
+        <p>Click the link below to reset your password:</p>
+        <a href="{reset_link}" style="background:#00d4ff; color:#000; padding:12px 24px; 
+        border-radius:8px; text-decoration:none; font-weight:bold;">Reset Password</a>
+        <p style="color:#64748b; font-size:12px; margin-top:20px;">
+        This link expires in 30 minutes. If you did not request this, ignore this email.</p>
+        </body></html>
+        """, 'html'))
+
+        server = smtplib.SMTP('smtp.gmail.com', 587)
+        server.starttls()
+        server.login(os.environ.get('MAIL_EMAIL'), os.environ.get('MAIL_PASSWORD'))
+        server.send_message(msg)
+        server.quit()
+        return jsonify({'success': True})
+    except Exception as e:
+        print(f"Reset error: {e}")
+        return jsonify({'success': False, 'message': 'Failed to send email'})
+
+@app.route('/reset/<token>', methods=['GET','POST'])
+def reset_page(token):
+    if token not in reset_tokens:
+        return '<h2 style="font-family:monospace;color:red;">Invalid or expired reset link.</h2>'
+    if request.method == 'POST':
+        new_password = request.form.get('password')
+        email        = reset_tokens[token]
+        try:
+            users = fdb.collection('users').where('email','==',email).limit(1).get()
+            if users:
+                users[0].reference.update({'password_hash': generate_password_hash(new_password)})
+            del reset_tokens[token]
+            return '<h2 style="font-family:monospace;color:#00ff88;">Password reset successful! <a href="/login" style="color:#00d4ff;">Login</a></h2>'
+        except:
+            return '<h2 style="font-family:monospace;color:red;">Error resetting password.</h2>'
+    return f'''
+    <html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+    <div style="background:#1a2235;border:1px solid #2d3748;border-radius:16px;padding:40px;width:360px;">
+    <h2 style="color:#00d4ff;">Reset Password</h2>
+    <form method="POST">
+    <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">New Password</label><br>
+    <input type="password" name="password" required style="width:100%;background:#0f1520;border:1px solid #2d3748;border-radius:8px;padding:11px;color:#e2e8f0;font-size:14px;margin:8px 0 20px;box-sizing:border-box;">
+    <button type="submit" style="width:100%;padding:12px;background:#00d4ff;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">Set New Password</button>
+    </form></div></body></html>
+    '''
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
