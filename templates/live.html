@@ -14,28 +14,17 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header">
+<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
   <div>
     <div class="page-title">Live Traffic</div>
     <div class="page-subtitle">Real-time packet stream with ML classification</div>
   </div>
-</div>
-
-<!-- Controls Row -->
-<div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
-  <div class="live-indicator" id="captureStatus"><div class="pulse-dot" id="captureDot" style="background:var(--accent-cyan)"></div> <span id="captureText">CAPTURING</span></div>
-  <button class="btn btn-sm" id="pauseBtn" onclick="toggleMonitoringLive()"
-    style="background:rgba(255,140,66,0.1);color:var(--accent-orange);border:1px solid rgba(255,140,66,0.3)">
-    ⏸ Pause
-  </button>
-  <button class="btn btn-sm" onclick="clearTable()"
-    style="background:rgba(255,59,92,0.1);color:var(--accent-red);border:1px solid rgba(255,59,92,0.3)">
-    ✕ Clear
-  </button>
-  <button class="btn btn-sm" onclick="openModal('exportModal')"
-    style="background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3)">
-    ↓ Export CSV
-  </button>
+  <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+    <div class="live-indicator" id="captureStatus"><div class="pulse-dot" id="captureDot" style="background:var(--accent-cyan)"></div> <span id="captureText">CAPTURING</span></div>
+    <button class="btn btn-sm" id="pauseBtn" onclick="toggleMonitoringLive()" style="background:rgba(255,140,66,0.1);color:var(--accent-orange);border:1px solid rgba(255,140,66,0.3)">⏸ Pause</button>
+    <button class="btn btn-sm" onclick="openModal('exportModal')" style="background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3)">↓ Export</button>
+    <button class="btn btn-sm" onclick="clearTable()" style="background:rgba(255,59,92,0.1);color:var(--accent-red);border:1px solid rgba(255,59,92,0.3)">✕ Clear</button>
+  </div>
 </div>
 
 <!-- Mini Stats -->
