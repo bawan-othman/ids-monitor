@@ -14,17 +14,28 @@
 {% endblock %}
 
 {% block content %}
-<div class="page-header" style="display:flex; justify-content:space-between; align-items:flex-start;">
+<div class="page-header">
   <div>
     <div class="page-title">Live Traffic</div>
     <div class="page-subtitle">Real-time packet stream with ML classification</div>
   </div>
-  <div style="display:flex; gap:10px; align-items:center; flex-wrap:wrap; justify-content:flex-end;">
-    <div class="live-indicator"><div class="pulse-dot"></div> CAPTURING</div>
-    <button class="btn btn-ghost btn-sm" onclick="toggleMonitoringLive()" id="pauseBtn">⏸ Pause</button>
-    <button class="btn btn-ghost btn-sm" style="color:var(--accent-green);border-color:rgba(0,255,136,0.3)" onclick="openModal('exportModal')">↓ Export</button>
-    <button class="btn btn-danger btn-sm" onclick="clearTable()">✕ Clear</button>
-  </div>
+</div>
+
+<!-- Controls Row -->
+<div style="display:flex; gap:10px; align-items:center; margin-bottom:20px; flex-wrap:wrap;">
+  <div class="live-indicator" id="captureStatus"><div class="pulse-dot" id="captureDot" style="background:var(--accent-cyan)"></div> <span id="captureText">CAPTURING</span></div>
+  <button class="btn btn-sm" id="pauseBtn" onclick="toggleMonitoringLive()"
+    style="background:rgba(255,140,66,0.1);color:var(--accent-orange);border:1px solid rgba(255,140,66,0.3)">
+    ⏸ Pause
+  </button>
+  <button class="btn btn-sm" onclick="clearTable()"
+    style="background:rgba(255,59,92,0.1);color:var(--accent-red);border:1px solid rgba(255,59,92,0.3)">
+    ✕ Clear
+  </button>
+  <button class="btn btn-sm" onclick="openModal('exportModal')"
+    style="background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3)">
+    ↓ Export CSV
+  </button>
 </div>
 
 <!-- Mini Stats -->
@@ -52,7 +63,7 @@
   <div class="card-header">
     <div class="card-title">Packet Stream</div>
     <div class="card-actions">
-      <span style="font-size:10px; font-family:var(--font-mono); color:var(--text-muted)">MAX 200 ROWS</span>
+      <span style="font-size:10px;font-family:var(--font-mono);color:var(--text-muted)">MAX 200 ROWS</span>
     </div>
   </div>
   <div style="overflow-x:auto; max-height:600px; overflow-y:auto;">
@@ -109,22 +120,50 @@
   let norm     = 0;
   let ppsCount = 0;
 
-  // ── Pause/Resume = Stop/Start monitoring ─────────────
+  // ── Toggle monitoring — synced with sidebar button ──
   async function toggleMonitoringLive() {
-    const btn = document.getElementById('pauseBtn');
     paused = !paused;
-    const endpoint = paused ? '/api/stop' : '/api/start';
+    const btn     = document.getElementById('pauseBtn');
+    const dot     = document.getElementById('captureDot');
+    const text    = document.getElementById('captureText');
+    const sideBtn = document.getElementById('monitorBtn');
+    const sideDot = document.getElementById('monitorDot');
+    const sideText= document.getElementById('monitorText');
+
     try {
-      await fetch(endpoint, { method: 'POST' });
+      await fetch(paused ? '/api/stop' : '/api/start', { method: 'POST' });
     } catch(e) {}
+
     if (paused) {
-      btn.textContent  = '▶ Resume';
-      btn.className    = 'btn btn-success btn-sm';
-      btn.style.color  = 'var(--accent-green)';
+      // Paused state
+      btn.textContent   = '▶ Resume';
+      btn.style.background  = 'rgba(0,255,136,0.1)';
+      btn.style.color       = 'var(--accent-green)';
+      btn.style.borderColor = 'rgba(0,255,136,0.3)';
+      dot.style.background  = 'var(--accent-red)';
+      text.textContent      = 'STOPPED';
+      if (sideBtn) {
+        sideBtn.style.background  = 'rgba(255,59,92,0.1)';
+        sideBtn.style.borderColor = 'rgba(255,59,92,0.3)';
+        sideBtn.style.color       = 'var(--accent-red)';
+        sideDot.style.background  = 'var(--accent-red)';
+        sideText.textContent      = 'START MONITORING';
+      }
     } else {
-      btn.textContent  = '⏸ Pause';
-      btn.className    = 'btn btn-ghost btn-sm';
-      btn.style.color  = '';
+      // Running state
+      btn.textContent       = '⏸ Pause';
+      btn.style.background  = 'rgba(255,140,66,0.1)';
+      btn.style.color       = 'var(--accent-orange)';
+      btn.style.borderColor = 'rgba(255,140,66,0.3)';
+      dot.style.background  = 'var(--accent-cyan)';
+      text.textContent      = 'CAPTURING';
+      if (sideBtn) {
+        sideBtn.style.background  = 'rgba(0,255,136,0.1)';
+        sideBtn.style.borderColor = 'rgba(0,255,136,0.3)';
+        sideBtn.style.color       = 'var(--accent-green)';
+        sideDot.style.background  = 'var(--accent-green)';
+        sideText.textContent      = 'MONITORING ACTIVE';
+      }
     }
   }
 
@@ -135,21 +174,22 @@
     document.getElementById('statTotal').textContent     = '0';
     document.getElementById('statMalicious').textContent = '0';
     document.getElementById('statNormal').textContent    = '0';
+    document.getElementById('statPPS').textContent       = '0';
   }
 
   socket.on('new_packet', data => {
     if (paused) return;
     ppsCount++;
     total++;
-    if (data.prediction === 'MALICIOUS' || data.label === 'MALICIOUS') mal++; else norm++;
+    const isMal = data.prediction === 'MALICIOUS' || data.label === 'MALICIOUS';
+    if (isMal) mal++; else norm++;
     document.getElementById('statTotal').textContent     = fmt(total);
     document.getElementById('statMalicious').textContent = fmt(mal);
     document.getElementById('statNormal').textContent    = fmt(norm);
     counter++;
     const tbody = document.getElementById('liveTable');
     if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
-    const isMal = data.prediction === 'MALICIOUS' || data.label === 'MALICIOUS';
-    const row   = document.createElement('tr');
+    const row = document.createElement('tr');
     row.className = `new-row${isMal ? ' malicious-row' : ''}`;
     row.innerHTML = `
       <td class="mono" style="color:var(--text-muted)">${counter}</td>
@@ -177,17 +217,19 @@
       if (!logs.length) return;
       const tbody = document.getElementById('liveTable');
       if (tbody.querySelector('.empty-state')) tbody.innerHTML = '';
-      tbody.innerHTML = logs.slice(0,50).map((l,i) => `
-        <tr class="${l.prediction==='MALICIOUS'?'malicious-row':''}">
+      tbody.innerHTML = logs.slice(0,50).map((l,i) => {
+        const isMal = l.prediction === 'MALICIOUS';
+        return `<tr class="${isMal?'malicious-row':''}">
           <td class="mono" style="color:var(--text-muted)">${i+1}</td>
-          <td class="mono" style="color:var(--text-muted)">${l.captured_at ? l.captured_at.split(' ')[1] : '—'}</td>
-          <td class="mono" style="color:${l.prediction==='MALICIOUS'?'var(--accent-red)':'var(--text-primary)'}">${l.src_ip||'—'}</td>
+          <td class="mono" style="color:var(--text-muted)">${l.captured_at?l.captured_at.split(' ')[1]:'—'}</td>
+          <td class="mono" style="color:${isMal?'var(--accent-red)':'var(--text-primary)'}">${l.src_ip||'—'}</td>
           <td class="mono" style="color:var(--text-muted)">${l.dst_ip||'—'}</td>
           <td>${l.protocol||'—'}</td>
           <td class="mono" style="color:var(--text-muted)">${l.length||'—'} B</td>
-          <td>${l.prediction==='MALICIOUS'?'<span class="badge badge-red">⚠ Malicious</span>':'<span class="badge badge-green">✓ Normal</span>'}</td>
+          <td>${isMal?'<span class="badge badge-red">⚠ Malicious</span>':'<span class="badge badge-green">✓ Normal</span>'}</td>
           <td class="mono" style="color:var(--text-muted)">${l.confidence?Math.round(l.confidence*100)+'%':'—'}</td>
-        </tr>`).join('');
+        </tr>`;
+      }).join('');
       total = logs.length;
       mal   = logs.filter(l => l.prediction==='MALICIOUS').length;
       norm  = total - mal;
@@ -204,7 +246,7 @@
     const status = document.getElementById('exportStatus');
     if (!from || !to) { alert('Please select both From and To date/time'); return; }
     if (new Date(from) >= new Date(to)) { alert('From must be before To'); return; }
-    status.textContent   = '// Fetching logs from Firebase...';
+    status.textContent = '// Fetching logs from Firebase...';
     status.style.display = 'block';
     try {
       const logs = await fetch(`/api/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&filter=${filter}`).then(r => r.json());
@@ -216,18 +258,15 @@
       const blob    = new Blob([csv], { type:'text/csv' });
       const url     = URL.createObjectURL(blob);
       const a       = document.createElement('a');
-      a.href        = url;
-      a.download    = `ids_logs_${from.replace(/[:\-T]/g,'_')}.csv`;
-      a.click();
-      URL.revokeObjectURL(url);
+      a.href = url; a.download = `ids_logs_${from.replace(/[:\-T]/g,'_')}.csv`;
+      a.click(); URL.revokeObjectURL(url);
       status.textContent = `// ✓ Exported ${logs.length} records`;
       setTimeout(() => { closeModal('exportModal'); status.style.display='none'; }, 2000);
     } catch(e) { status.textContent = '// ERROR: Failed to fetch logs'; }
   }
 
-  // Set default export range to last 24 hours
-  const now  = new Date();
-  const ago  = new Date(now - 24*60*60*1000);
+  const now = new Date();
+  const ago = new Date(now - 24*60*60*1000);
   document.getElementById('exportTo').value   = now.toISOString().slice(0,16);
   document.getElementById('exportFrom').value = ago.toISOString().slice(0,16);
 
