@@ -22,7 +22,7 @@ if not firebase_admin._apps:
     firebase_admin.initialize_app(cred)
 fdb = firestore.client()
 
-# ── Memory cache (reads — zero Firebase quota) ────────
+# ── Memory cache ──────────────────────────────────────
 cache = {
     'logs':    deque(maxlen=100),
     'alerts':  deque(maxlen=50),
@@ -122,7 +122,6 @@ def receive_packet():
              'prediction':d.get('label','Normal'), 'confidence':d.get('confidence',0),
              'attack_type':d.get('attack_type','-')}
 
-    # Update memory cache
     cache['logs'].appendleft(entry)
     cache['stats']['total_packets']     += 1
     cache['stats']['malicious_packets'] += 1 if is_mal else 0
@@ -131,7 +130,6 @@ def receive_packet():
         'created_at': now, 'severity': 'high' if d.get('confidence',0)>0.9 else 'medium',
         'title': f"Malicious from {d.get('src_ip','')}", 'status':'new'})
 
-    # Write to Firebase (background — persistent storage only)
     def save():
         try:
             fdb.collection('traffic_logs').add({**d, 'timestamp': firestore.SERVER_TIMESTAMP})
@@ -151,7 +149,7 @@ def receive_packet():
     if is_mal: socketio.emit('new_alert', entry)
     return jsonify({'success':True})
 
-# ── API: all reads from memory cache ─────────────────
+# ── API: reads from memory cache ─────────────────────
 @app.route('/api/stats')
 def get_stats(): return jsonify(cache['stats'])
 
@@ -214,8 +212,8 @@ def search():
     if 'user_id' not in session: return jsonify({'error':'Unauthorized'}), 401
     q = request.args.get('q','').strip().lower()
     if len(q) < 2: return jsonify({'logs':[],'alerts':[],'blocked':[]})
-    logs    = [l for l in cache['logs']    if q in l.get('src_ip','').lower() or q in l.get('dst_ip','').lower()][:5]
-    alerts  = [a for a in cache['alerts']  if q in a.get('src_ip','').lower()][:5]
+    logs   = [l for l in cache['logs']   if q in l.get('src_ip','').lower() or q in l.get('dst_ip','').lower()][:5]
+    alerts = [a for a in cache['alerts'] if q in a.get('src_ip','').lower()][:5]
     return jsonify({'logs':logs,'alerts':alerts,'blocked':[]})
 
 # ── Users ─────────────────────────────────────────────
@@ -246,7 +244,7 @@ def deactivate_user(uid):
     except: pass
     return jsonify({'success':True})
 
-# ── Monitoring control (Pi polls this) ───────────────
+# ── Monitoring control ────────────────────────────────
 @app.route('/api/command')
 def get_command(): return jsonify({'command': cache['command']})
 
@@ -260,54 +258,34 @@ def stop_monitoring():
     cache['command'] = 'stop'
     return jsonify({'success':True, 'command':'stop'})
 
+# ── Password Reset ────────────────────────────────────
 @app.route('/api/reset-password', methods=['POST'])
-def reset_password():
-    data = request.get_json()
-    email = data.get('email')
-    if not email:
-        return jsonify({'success': False, 'message': 'Email is required'})
-    try:
-        from firebase_admin import auth
-        auth.generate_password_reset_link(email)
-        link = auth.generate_password_reset_link(email)
-        # Send via Firebase (auto sends email)
-        return jsonify({'success': True})
-    except Exception as e:
-        return jsonify({'success': False, 'message': 'Email not found in system'})
-    
-    @app.route('/api/reset-password', methods=['POST'])
 def reset_password():
     data  = request.get_json()
     email = data.get('email', '').strip()
     if not email:
         return jsonify({'success': False, 'message': 'Email is required'})
     try:
-        # Check if email exists in Firestore
         users = fdb.collection('users').where('email', '==', email).limit(1).get()
         if not users:
             return jsonify({'success': False, 'message': 'Email not found in system'})
-
-        # Generate reset token
         token = secrets.token_urlsafe(32)
         reset_tokens[token] = email
-
-        # Send email
         reset_link = f"https://ids-monitor.vercel.app/reset/{token}"
         msg = MIMEMultipart()
         msg['From']    = os.environ.get('MAIL_EMAIL')
         msg['To']      = email
         msg['Subject'] = 'IDS Monitor - Password Reset'
         msg.attach(MIMEText(f"""
-        <html><body style="font-family:monospace; background:#0f1520; color:#e2e8f0; padding:30px;">
+        <html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;padding:30px;">
         <h2 style="color:#00d4ff;">IDS Monitor — Password Reset</h2>
         <p>Click the link below to reset your password:</p>
-        <a href="{reset_link}" style="background:#00d4ff; color:#000; padding:12px 24px; 
-        border-radius:8px; text-decoration:none; font-weight:bold;">Reset Password</a>
-        <p style="color:#64748b; font-size:12px; margin-top:20px;">
+        <a href="{reset_link}" style="background:#00d4ff;color:#000;padding:12px 24px;
+        border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a>
+        <p style="color:#64748b;font-size:12px;margin-top:20px;">
         This link expires in 30 minutes. If you did not request this, ignore this email.</p>
         </body></html>
         """, 'html'))
-
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()
         server.login(os.environ.get('MAIL_EMAIL'), os.environ.get('MAIL_PASSWORD'))
@@ -334,13 +312,17 @@ def reset_page(token):
         except:
             return '<h2 style="font-family:monospace;color:red;">Error resetting password.</h2>'
     return f'''
-    <html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;">
+    <html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;display:flex;
+    align-items:center;justify-content:center;min-height:100vh;margin:0;">
     <div style="background:#1a2235;border:1px solid #2d3748;border-radius:16px;padding:40px;width:360px;">
     <h2 style="color:#00d4ff;">Reset Password</h2>
     <form method="POST">
     <label style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;">New Password</label><br>
-    <input type="password" name="password" required style="width:100%;background:#0f1520;border:1px solid #2d3748;border-radius:8px;padding:11px;color:#e2e8f0;font-size:14px;margin:8px 0 20px;box-sizing:border-box;">
-    <button type="submit" style="width:100%;padding:12px;background:#00d4ff;color:#000;border:none;border-radius:8px;font-weight:bold;cursor:pointer;">Set New Password</button>
+    <input type="password" name="password" required style="width:100%;background:#0f1520;
+    border:1px solid #2d3748;border-radius:8px;padding:11px;color:#e2e8f0;font-size:14px;
+    margin:8px 0 20px;box-sizing:border-box;">
+    <button type="submit" style="width:100%;padding:12px;background:#00d4ff;color:#000;
+    border:none;border-radius:8px;font-weight:bold;cursor:pointer;">Set New Password</button>
     </form></div></body></html>
     '''
 
