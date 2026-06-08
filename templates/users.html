@@ -14,19 +14,11 @@
 <div class="card">
   <div class="card-header">
     <div class="card-title">System Users</div>
-    <div style="font-size:11px; font-family:var(--font-mono); color:var(--text-muted)" id="userCount">— users</div>
+    <div style="font-size:11px;font-family:var(--font-mono);color:var(--text-muted)" id="userCount">— users</div>
   </div>
   <table>
     <thead>
-      <tr>
-        <th>Username</th>
-        <th>Email</th>
-        <th>Role</th>
-        <th>Status</th>
-        <th>Created</th>
-        <th>Last Login</th>
-        <th>Actions</th>
-      </tr>
+      <tr><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Created</th><th>Last Login</th><th>Actions</th></tr>
     </thead>
     <tbody id="usersTable">
       <tr><td colspan="7"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-text">Loading users...</div></div></td></tr>
@@ -38,18 +30,9 @@
 <div class="modal-overlay" id="addUserModal">
   <div class="modal">
     <div class="modal-title">◈ Add New User</div>
-    <div class="form-group">
-      <label class="form-label">Username</label>
-      <input type="text" id="newUsername" class="form-input" placeholder="Enter username">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Email</label>
-      <input type="email" id="newEmail" class="form-input" placeholder="Enter email address">
-    </div>
-    <div class="form-group">
-      <label class="form-label">Password</label>
-      <input type="password" id="newPassword" class="form-input" placeholder="Enter password">
-    </div>
+    <div class="form-group"><label class="form-label">Username</label><input type="text" id="newUsername" class="form-input" placeholder="Enter username"></div>
+    <div class="form-group"><label class="form-label">Email</label><input type="email" id="newEmail" class="form-input" placeholder="Enter email address"></div>
+    <div class="form-group"><label class="form-label">Password</label><input type="password" id="newPassword" class="form-input" placeholder="Enter password"></div>
     <div class="form-group">
       <label class="form-label">Role</label>
       <select id="newRole" class="form-select">
@@ -64,10 +47,100 @@
     </div>
   </div>
 </div>
+
+<!-- Edit User Modal -->
+<div class="modal-overlay" id="editUserModal">
+  <div class="modal">
+    <div class="modal-title">◈ Edit User</div>
+    <input type="hidden" id="editUserId">
+    <div class="form-group"><label class="form-label">Username</label><input type="text" id="editUsername" class="form-input"></div>
+    <div class="form-group"><label class="form-label">Email</label><input type="email" id="editEmail" class="form-input"></div>
+    <div class="form-group"><label class="form-label">New Password <span style="color:var(--text-muted);font-size:10px;">(leave blank to keep)</span></label><input type="password" id="editPassword" class="form-input" placeholder="Leave blank to keep current"></div>
+    <div class="form-group">
+      <label class="form-label">Role</label>
+      <select id="editRole" class="form-select">
+        <option value="viewer">Viewer</option>
+        <option value="analyst">Analyst</option>
+        <option value="admin">Admin</option>
+      </select>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeModal('editUserModal')">Cancel</button>
+      <button class="btn btn-primary" onclick="submitEditUser()">Save Changes</button>
+    </div>
+  </div>
+</div>
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
   loadUsers();
+
+  async function loadUsers() {
+    const users = await fetch('/api/users').then(r => r.json());
+    document.getElementById('userCount').textContent = `${users.length} users`;
+    document.getElementById('usersTable').innerHTML = users.length ? users.map(u => `
+      <tr>
+        <td><strong>${u.username}</strong></td>
+        <td style="color:var(--text-muted)">${u.email||'—'}</td>
+        <td><span class="badge ${u.role==='admin'?'badge-cyan':'badge-gray'}">${u.role.toUpperCase()}</span></td>
+        <td><span class="badge ${u.is_active?'badge-green':'badge-red'}">${u.is_active?'ACTIVE':'INACTIVE'}</span></td>
+        <td style="color:var(--text-muted)">${u.created_at||'—'}</td>
+        <td style="color:var(--text-muted)">${u.last_login_at||'Never'}</td>
+        <td style="display:flex;gap:6px;">
+          <button class="btn btn-sm" style="background:rgba(0,212,255,0.1);color:var(--accent-cyan);border:1px solid rgba(0,212,255,0.2)" onclick="openEdit('${u.user_id}','${u.username}','${u.email}','${u.role}')">Edit</button>
+          ${u.is_active?`<button class="btn btn-sm" style="background:rgba(255,140,66,0.1);color:var(--accent-orange);border:1px solid rgba(255,140,66,0.2)" onclick="deactivateUser('${u.user_id}')">Deactivate</button>`:''}
+          <button class="btn btn-sm" style="background:rgba(255,59,92,0.1);color:var(--accent-red);border:1px solid rgba(255,59,92,0.2)" onclick="deleteUser('${u.user_id}','${u.username}')">Delete</button>
+        </td>
+      </tr>`).join('') : '<tr><td colspan="7"><div class="empty-state"><div class="empty-icon">◈</div><div class="empty-text">No users found</div></div></td></tr>';
+  }
+
+  function openEdit(id, username, email, role) {
+    document.getElementById('editUserId').value   = id;
+    document.getElementById('editUsername').value = username;
+    document.getElementById('editEmail').value    = email;
+    document.getElementById('editRole').value     = role;
+    document.getElementById('editPassword').value = '';
+    openModal('editUserModal');
+  }
+
+  async function submitEditUser() {
+    const id = document.getElementById('editUserId').value;
+    const body = {
+      username: document.getElementById('editUsername').value.trim(),
+      email:    document.getElementById('editEmail').value.trim(),
+      role:     document.getElementById('editRole').value,
+      password: document.getElementById('editPassword').value
+    };
+    if (!body.username || !body.email) return alert('Username and email are required');
+    const data = await fetch(`/api/users/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json());
+    if (data.success) { closeModal('editUserModal'); loadUsers(); }
+    else alert(data.message || 'Failed to update user');
+  }
+
+  async function deleteUser(id, username) {
+    if (!confirm(`Delete user "${username}" permanently?`)) return;
+    const data = await fetch(`/api/users/${id}`, { method:'DELETE' }).then(r=>r.json());
+    if (data.success) loadUsers();
+    else alert('Failed to delete user');
+  }
+
+  async function deactivateUser(id) {
+    const data = await fetch(`/api/users/${id}/deactivate`, { method:'POST' }).then(r=>r.json());
+    if (data.success) loadUsers();
+  }
+
+  async function submitAddUser() {
+    const body = {
+      username: document.getElementById('newUsername').value.trim(),
+      email:    document.getElementById('newEmail').value.trim(),
+      password: document.getElementById('newPassword').value,
+      role:     document.getElementById('newRole').value
+    };
+    if (!body.username || !body.email || !body.password) return alert('All fields are required');
+    const data = await fetch('/api/users', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) }).then(r=>r.json());
+    if (data.success) { closeModal('addUserModal'); loadUsers(); }
+    else alert(data.message || 'Failed to add user');
+  }
 </script>
 {% endblock %}

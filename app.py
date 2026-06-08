@@ -326,5 +326,22 @@ def reset_page(token):
     </form></div></body></html>
     '''
 
+@app.route('/api/users/<uid>', methods=['PUT'])
+def edit_user(uid):
+    d = request.get_json()
+    try:
+        update = {'username':d.get('username'),'email':d.get('email'),'role':d.get('role')}
+        if d.get('password'): update['password_hash'] = generate_password_hash(d.get('password'))
+        fdb.collection('users').document(uid).update(update)
+        return jsonify({'success':True})
+    except Exception as e: return jsonify({'success':False,'message':str(e)})
+
+@app.route('/api/users/<uid>', methods=['DELETE'])
+def delete_user(uid):
+    try:
+        fdb.collection('users').document(uid).delete()
+        return jsonify({'success':True})
+    except Exception as e: return jsonify({'success':False,'message':str(e)})
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
