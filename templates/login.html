@@ -13,8 +13,6 @@
       min-height: 100vh;
       background: var(--bg-deep);
     }
-
-    /* Animated grid background */
     body::after {
       content: '';
       position: fixed;
@@ -26,7 +24,6 @@
       pointer-events: none;
       z-index: 0;
     }
-
     .login-wrap {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -39,8 +36,6 @@
       position: relative;
       z-index: 1;
     }
-
-    /* Left panel */
     .login-left {
       background: linear-gradient(135deg, #0a1628 0%, #0c1a30 50%, #070e1a 100%);
       padding: 48px 40px;
@@ -51,7 +46,6 @@
       overflow: hidden;
       border-right: 1px solid var(--border);
     }
-
     .login-left::before {
       content: '';
       position: absolute;
@@ -61,7 +55,6 @@
       background: radial-gradient(circle, rgba(0,212,255,0.1) 0%, transparent 70%);
       pointer-events: none;
     }
-
     .login-left::after {
       content: '';
       position: absolute;
@@ -71,125 +64,28 @@
       background: radial-gradient(circle, rgba(124,58,237,0.08) 0%, transparent 70%);
       pointer-events: none;
     }
-
-    .login-brand {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
+    .login-brand { display: flex; align-items: center; gap: 12px; }
     .login-brand-icon {
       width: 44px; height: 44px;
       background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
       border-radius: 10px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      display: flex; align-items: center; justify-content: center;
       font-size: 20px;
       box-shadow: var(--glow-cyan);
     }
-
-    .login-brand h1 {
-      font-family: var(--font-display);
-      font-size: 18px;
-      font-weight: 800;
-      color: var(--text-primary);
-    }
-
-    .login-brand p {
-      font-size: 10px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-      text-transform: uppercase;
-      letter-spacing: 1px;
-      margin-top: 2px;
-    }
-
-    .login-hero {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-      padding: 40px 0;
-    }
-
-    .login-hero h2 {
-      font-family: var(--font-display);
-      font-size: 28px;
-      font-weight: 800;
-      line-height: 1.2;
-      color: var(--text-primary);
-      letter-spacing: -0.5px;
-    }
-
-    .login-hero h2 span {
-      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green));
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-
-    .login-hero p {
-      color: var(--text-secondary);
-      font-size: 13px;
-      line-height: 1.6;
-      margin-top: 12px;
-      max-width: 280px;
-    }
-
-    .feature-list {
-      margin-top: 28px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-    }
-
-    .feature-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      font-size: 12px;
-      color: var(--text-secondary);
-    }
-
-    .feature-dot {
-      width: 6px; height: 6px;
-      border-radius: 50%;
-      background: var(--accent-cyan);
-      flex-shrink: 0;
-    }
-
-    .login-footer {
-      font-size: 10px;
-      color: var(--text-muted);
-      font-family: var(--font-mono);
-      line-height: 1.6;
-    }
-
-    /* Right panel */
-    .login-right {
-      background: var(--bg-card);
-      padding: 48px 40px;
-      display: flex;
-      flex-direction: column;
-      justify-content: center;
-    }
-
-    .login-form-title {
-      font-family: var(--font-display);
-      font-size: 22px;
-      font-weight: 800;
-      color: var(--text-primary);
-      margin-bottom: 6px;
-    }
-
-    .login-form-subtitle {
-      color: var(--text-muted);
-      font-size: 12px;
-      font-family: var(--font-mono);
-      margin-bottom: 32px;
-    }
-
+    .login-brand h1 { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--text-primary); }
+    .login-brand p { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); text-transform: uppercase; letter-spacing: 1px; margin-top: 2px; }
+    .login-hero { flex: 1; display: flex; flex-direction: column; justify-content: center; padding: 40px 0; }
+    .login-hero h2 { font-family: var(--font-display); font-size: 28px; font-weight: 800; line-height: 1.2; color: var(--text-primary); letter-spacing: -0.5px; }
+    .login-hero h2 span { background: linear-gradient(135deg, var(--accent-cyan), var(--accent-green)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .login-hero p { color: var(--text-secondary); font-size: 13px; line-height: 1.6; margin-top: 12px; max-width: 280px; }
+    .feature-list { margin-top: 28px; display: flex; flex-direction: column; gap: 10px; }
+    .feature-item { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-secondary); }
+    .feature-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent-cyan); flex-shrink: 0; }
+    .login-footer { font-size: 10px; color: var(--text-muted); font-family: var(--font-mono); line-height: 1.6; }
+    .login-right { background: var(--bg-card); padding: 48px 40px; display: flex; flex-direction: column; justify-content: center; }
+    .login-form-title { font-family: var(--font-display); font-size: 22px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }
+    .login-form-subtitle { color: var(--text-muted); font-size: 12px; font-family: var(--font-mono); margin-bottom: 32px; }
     .error-alert {
       background: rgba(255,59,92,0.08);
       border: 1px solid rgba(255,59,92,0.2);
@@ -201,7 +97,17 @@
       display: none;
       font-family: var(--font-mono);
     }
-
+    .success-alert {
+      background: rgba(0,255,136,0.08);
+      border: 1px solid rgba(0,255,136,0.2);
+      border-radius: 8px;
+      padding: 10px 14px;
+      font-size: 12px;
+      color: var(--accent-green);
+      margin-bottom: 20px;
+      display: none;
+      font-family: var(--font-mono);
+    }
     .login-btn {
       width: 100%;
       padding: 13px;
@@ -218,32 +124,10 @@
       margin-top: 8px;
       box-shadow: 0 4px 20px rgba(0,212,255,0.25);
     }
-
-    .login-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 6px 28px rgba(0,212,255,0.35);
-    }
-
-    .login-btn:disabled {
-      background: var(--bg-surface);
-      color: var(--text-muted);
-      box-shadow: none;
-      transform: none;
-      cursor: not-allowed;
-    }
-
+    .login-btn:hover { transform: translateY(-1px); box-shadow: 0 6px 28px rgba(0,212,255,0.35); }
+    .login-btn:disabled { background: var(--bg-surface); color: var(--text-muted); box-shadow: none; transform: none; cursor: not-allowed; }
     .form-group { margin-bottom: 18px; }
-
-    .form-label {
-      display: block;
-      font-size: 10px;
-      font-family: var(--font-mono);
-      color: var(--text-muted);
-      text-transform: uppercase;
-      letter-spacing: 1.5px;
-      margin-bottom: 8px;
-    }
-
+    .form-label { display: block; font-size: 10px; font-family: var(--font-mono); color: var(--text-muted); text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 8px; }
     .form-input {
       width: 100%;
       background: var(--bg-base);
@@ -256,14 +140,70 @@
       outline: none;
       transition: border-color 0.2s, box-shadow 0.2s;
     }
-
-    .form-input:focus {
-      border-color: rgba(0,212,255,0.4);
-      box-shadow: 0 0 0 3px rgba(0,212,255,0.08);
-    }
-
+    .form-input:focus { border-color: rgba(0,212,255,0.4); box-shadow: 0 0 0 3px rgba(0,212,255,0.08); }
     .form-input::placeholder { color: var(--text-muted); }
+    .forgot-link {
+      text-align: right;
+      margin-top: -10px;
+      margin-bottom: 16px;
+    }
+    .forgot-link a {
+      font-size: 11px;
+      font-family: var(--font-mono);
+      color: var(--accent-cyan);
+      text-decoration: none;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .forgot-link a:hover { opacity: 1; }
 
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+    }
+    .modal-overlay.active { display: flex; }
+    .modal {
+      background: var(--bg-card);
+      border: 1px solid var(--border-bright);
+      border-radius: 16px;
+      padding: 32px;
+      width: 380px;
+      max-width: 90vw;
+      box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    }
+    .modal-title { font-family: var(--font-display); font-size: 18px; font-weight: 800; color: var(--text-primary); margin-bottom: 6px; }
+    .modal-subtitle { font-size: 12px; color: var(--text-muted); font-family: var(--font-mono); margin-bottom: 24px; }
+    .modal-btn {
+      width: 100%;
+      padding: 12px;
+      border-radius: 8px;
+      border: none;
+      background: linear-gradient(135deg, var(--accent-cyan), #0099cc);
+      color: #000;
+      font-family: var(--font-display);
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 8px;
+    }
+    .modal-cancel {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-muted);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      cursor: pointer;
+      margin-top: 8px;
+    }
     @media (max-width: 680px) {
       .login-wrap { grid-template-columns: 1fr; }
       .login-left { display: none; }
@@ -281,7 +221,6 @@
           <p>Network Security Platform</p>
         </div>
       </div>
-
       <div class="login-hero">
         <h2>Intelligent <span>Threat Detection</span> System</h2>
         <p>Real-time ML-powered network intrusion detection with live traffic analysis and automated alerting.</p>
@@ -292,7 +231,6 @@
           <div class="feature-item"><div class="feature-dot"></div> Automated alert & blocklist management</div>
         </div>
       </div>
-
       <div class="login-footer">
         Final Year Project 2026<br>
         Network Security & IDS Research<br>
@@ -305,7 +243,8 @@
       <div class="login-form-title">Welcome back</div>
       <div class="login-form-subtitle">// SECURE ACCESS PORTAL</div>
 
-      <div class="error-alert" id="errorAlert"></div>
+      <div class="error-alert"   id="errorAlert"></div>
+      <div class="success-alert" id="successAlert"></div>
 
       <div class="form-group">
         <label class="form-label">Username</label>
@@ -317,7 +256,27 @@
         <input type="password" id="password" class="form-input" placeholder="Enter your password" autocomplete="current-password">
       </div>
 
+      <div class="forgot-link">
+        <a href="#" onclick="openForgot()">Forgot password?</a>
+      </div>
+
       <button class="login-btn" id="loginBtn" onclick="doLogin()">Sign In →</button>
+    </div>
+  </div>
+
+  <!-- Forgot Password Modal -->
+  <div class="modal-overlay" id="forgotModal">
+    <div class="modal">
+      <div class="modal-title">Reset Password</div>
+      <div class="modal-subtitle">// ENTER YOUR ACCOUNT EMAIL</div>
+      <div class="error-alert"   id="resetError"></div>
+      <div class="success-alert" id="resetSuccess"></div>
+      <div class="form-group">
+        <label class="form-label">Email Address</label>
+        <input type="email" id="resetEmail" class="form-input" placeholder="Enter your email address">
+      </div>
+      <button class="modal-btn" onclick="sendReset()">Send Reset Link →</button>
+      <button class="modal-cancel" onclick="closeForgot()">Cancel</button>
     </div>
   </div>
 
@@ -325,9 +284,9 @@
     document.addEventListener('keypress', e => { if (e.key === 'Enter') doLogin(); });
 
     async function doLogin() {
-      const username  = document.getElementById('username').value.trim();
-      const password  = document.getElementById('password').value.trim();
-      const btn       = document.getElementById('loginBtn');
+      const username   = document.getElementById('username').value.trim();
+      const password   = document.getElementById('password').value.trim();
+      const btn        = document.getElementById('loginBtn');
       const errorAlert = document.getElementById('errorAlert');
 
       if (!username || !password) {
@@ -361,6 +320,53 @@
         errorAlert.style.display = 'block';
         btn.disabled    = false;
         btn.textContent = 'Sign In →';
+      }
+    }
+
+    function openForgot() {
+      document.getElementById('forgotModal').classList.add('active');
+      document.getElementById('resetEmail').focus();
+      document.getElementById('resetError').style.display   = 'none';
+      document.getElementById('resetSuccess').style.display = 'none';
+    }
+
+    function closeForgot() {
+      document.getElementById('forgotModal').classList.remove('active');
+      document.getElementById('resetEmail').value = '';
+    }
+
+    async function sendReset() {
+      const email   = document.getElementById('resetEmail').value.trim();
+      const errEl   = document.getElementById('resetError');
+      const succEl  = document.getElementById('resetSuccess');
+
+      errEl.style.display  = 'none';
+      succEl.style.display = 'none';
+
+      if (!email) {
+        errEl.textContent = '// ERROR: Email address is required';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      try {
+        const res  = await fetch('/api/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+        const data = await res.json();
+        if (data.success) {
+          succEl.textContent = '// Reset link sent! Check your email.';
+          succEl.style.display = 'block';
+          setTimeout(closeForgot, 3000);
+        } else {
+          errEl.textContent = `// ERROR: ${data.message || 'Failed to send reset email'}`;
+          errEl.style.display = 'block';
+        }
+      } catch(e) {
+        errEl.textContent = '// ERROR: Connection failed. Try again.';
+        errEl.style.display = 'block';
       }
     }
   </script>

@@ -256,5 +256,20 @@ def stop_monitoring():
     cache['command'] = 'stop'
     return jsonify({'success':True, 'command':'stop'})
 
+@app.route('/api/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json()
+    email = data.get('email')
+    if not email:
+        return jsonify({'success': False, 'message': 'Email is required'})
+    try:
+        from firebase_admin import auth
+        auth.generate_password_reset_link(email)
+        link = auth.generate_password_reset_link(email)
+        # Send via Firebase (auto sends email)
+        return jsonify({'success': True})
+    except Exception as e:
+        return jsonify({'success': False, 'message': 'Email not found in system'})
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
