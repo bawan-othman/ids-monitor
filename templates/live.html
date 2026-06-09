@@ -15,17 +15,13 @@
 
 {% block content %}
 
-<!-- Title -->
-<div class="page-header">
-  <div>
-    <div class="page-title">Live Traffic</div>
-    <div class="page-subtitle">Real-time packet stream with ML classification</div>
-  </div>
+<div style="margin-bottom:16px;">
+  <div class="page-title">Live Traffic</div>
+  <div class="page-subtitle">Real-time packet stream with ML classification</div>
 </div>
 
-<!-- Controls Bar — full width row below title -->
+<!-- Controls Bar -->
 <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; background:var(--bg-card); border:1px solid var(--border); border-radius:10px; padding:12px 16px;">
-  <!-- Left: status + pause -->
   <div style="display:flex; gap:10px; align-items:center;">
     <div style="display:flex; align-items:center; gap:6px; font-family:var(--font-mono); font-size:11px;">
       <div class="pulse-dot" id="captureDot" style="background:var(--accent-cyan)"></div>
@@ -34,7 +30,6 @@
     <button id="pauseBtn" onclick="toggleMonitoringLive()" class="btn btn-sm" style="background:rgba(255,140,66,0.1);color:var(--accent-orange);border:1px solid rgba(255,140,66,0.3);">⏸ Pause</button>
     <button onclick="clearTable()" class="btn btn-sm" style="background:rgba(255,59,92,0.1);color:var(--accent-red);border:1px solid rgba(255,59,92,0.3);">✕ Clear</button>
   </div>
-  <!-- Right: export -->
   <button onclick="openModal('exportModal')" class="btn btn-sm" style="background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3);">↓ Export CSV</button>
 </div>
 
@@ -98,28 +93,24 @@
     </div>
   </div>
 </div>
-
 {% endblock %}
 
 {% block extra_scripts %}
 <script>
-let paused=false, counter=0, total=0, mal=0, norm=0, ppsCount=0;
+let paused=false, counter=0, total=0, mal=0, norm=0;
+let ppsCount=0, lastPpsTime=Date.now();
 
 async function toggleMonitoringLive() {
   paused = !paused;
-  const btn      = document.getElementById('pauseBtn');
-  const dot      = document.getElementById('captureDot');
-  const text     = document.getElementById('captureText');
-  const sideBtn  = document.getElementById('monitorBtn');
-  const sideDot  = document.getElementById('monitorDot');
-  const sideText = document.getElementById('monitorText');
-  try { await fetch(paused ? '/api/stop' : '/api/start', {method:'POST'}); } catch(e) {}
-  if (paused) {
-    btn.textContent='▶ Resume'; btn.style.background='rgba(0,255,136,0.1)'; btn.style.color='var(--accent-green)'; btn.style.borderColor='rgba(0,255,136,0.3)';
+  const btn=document.getElementById('pauseBtn'), dot=document.getElementById('captureDot'), text=document.getElementById('captureText');
+  const sideBtn=document.getElementById('monitorBtn'), sideDot=document.getElementById('monitorDot'), sideText=document.getElementById('monitorText');
+  try { await fetch(paused?'/api/stop':'/api/start',{method:'POST'}); } catch(e){}
+  if(paused){
+    btn.textContent='▶ Resume'; btn.style.cssText='background:rgba(0,255,136,0.1);color:var(--accent-green);border:1px solid rgba(0,255,136,0.3)';
     dot.style.background='var(--accent-red)'; text.textContent='STOPPED'; text.style.color='var(--accent-red)';
     if(sideBtn){sideBtn.style.background='rgba(255,59,92,0.1)';sideBtn.style.borderColor='rgba(255,59,92,0.3)';sideBtn.style.color='var(--accent-red)';sideDot.style.background='var(--accent-red)';sideText.textContent='START MONITORING';}
   } else {
-    btn.textContent='⏸ Pause'; btn.style.background='rgba(255,140,66,0.1)'; btn.style.color='var(--accent-orange)'; btn.style.borderColor='rgba(255,140,66,0.3)';
+    btn.textContent='⏸ Pause'; btn.style.cssText='background:rgba(255,140,66,0.1);color:var(--accent-orange);border:1px solid rgba(255,140,66,0.3)';
     dot.style.background='var(--accent-cyan)'; text.textContent='CAPTURING'; text.style.color='var(--accent-cyan)';
     if(sideBtn){sideBtn.style.background='rgba(0,255,136,0.1)';sideBtn.style.borderColor='rgba(0,255,136,0.3)';sideBtn.style.color='var(--accent-green)';sideDot.style.background='var(--accent-green)';sideText.textContent='MONITORING ACTIVE';}
   }
@@ -127,14 +118,21 @@ async function toggleMonitoringLive() {
 
 function clearTable() {
   document.getElementById('liveTable').innerHTML='<tr><td colspan="8"><div class="empty-state"><div class="empty-icon">◉</div><div class="empty-text">Cleared — waiting for packets...</div></div></td></tr>';
-  counter=0; total=0; mal=0; norm=0;
-  ['statTotal','statMalicious','statNormal','statPPS'].forEach(id => document.getElementById(id).textContent='0');
+  counter=0; total=0; mal=0; norm=0; ppsCount=0;
+  ['statTotal','statMalicious','statNormal','statPPS'].forEach(id=>document.getElementById(id).textContent='0');
 }
 
-socket.on('new_packet', data => {
+// Packets per second — calculated every second
+setInterval(()=>{
+  const now=Date.now(), elapsed=(now-lastPpsTime)/1000;
+  document.getElementById('statPPS').textContent=Math.round(ppsCount/elapsed);
+  ppsCount=0; lastPpsTime=now;
+},1000);
+
+socket.on('new_packet', data=>{
   if(paused) return;
   ppsCount++; total++;
-  const isMal = data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
+  const isMal=data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
   if(isMal) mal++; else norm++;
   document.getElementById('statTotal').textContent=fmt(total);
   document.getElementById('statMalicious').textContent=fmt(mal);
@@ -158,11 +156,9 @@ socket.on('new_packet', data => {
   setTimeout(()=>row.classList.remove('new-row'),500);
 });
 
-setInterval(()=>{ document.getElementById('statPPS').textContent=ppsCount; ppsCount=0; },1000);
-
-async function pollLive() {
+async function pollLive(){
   if(paused) return;
-  try {
+  try{
     const logs=await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
     const tbody=document.getElementById('liveTable');
@@ -184,31 +180,26 @@ async function pollLive() {
     document.getElementById('statTotal').textContent=fmt(total);
     document.getElementById('statMalicious').textContent=fmt(mal);
     document.getElementById('statNormal').textContent=fmt(norm);
-  } catch(e) {}
+  }catch(e){}
 }
 
-async function exportCSV() {
-  const from=document.getElementById('exportFrom').value;
-  const to=document.getElementById('exportTo').value;
-  const filter=document.getElementById('exportFilter').value;
-  const status=document.getElementById('exportStatus');
+async function exportCSV(){
+  const from=document.getElementById('exportFrom').value, to=document.getElementById('exportTo').value;
+  const filter=document.getElementById('exportFilter').value, status=document.getElementById('exportStatus');
   if(!from||!to){alert('Please select both From and To');return;}
   if(new Date(from)>=new Date(to)){alert('From must be before To');return;}
   status.textContent='// Fetching logs from Firebase...'; status.style.display='block';
-  try {
+  try{
     const logs=await fetch(`/api/export?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}&filter=${filter}`).then(r=>r.json());
     if(!logs.length){status.textContent='// No logs found in selected range';return;}
     const headers=['Timestamp','Source IP','Destination IP','Protocol','Length','Classification','Confidence','Attack Type'];
     const rows=logs.map(l=>[l.captured_at,l.src_ip,l.dst_ip,l.protocol,l.length,l.prediction,l.confidence,l.attack_type].map(v=>`"${v||''}"`).join(','));
     const csv=[headers.join(','),...rows].join('\n');
-    const blob=new Blob([csv],{type:'text/csv'});
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    a.href=url; a.download=`ids_logs_${from.replace(/[:\-T]/g,'_')}.csv`;
-    a.click(); URL.revokeObjectURL(url);
+    const blob=new Blob([csv],{type:'text/csv'}), url=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=url; a.download=`ids_logs_${from.replace(/[:\-T]/g,'_')}.csv`; a.click(); URL.revokeObjectURL(url);
     status.textContent=`// Exported ${logs.length} records successfully`;
     setTimeout(()=>{closeModal('exportModal');status.style.display='none';},2000);
-  } catch(e){status.textContent='// ERROR: Failed to fetch logs';}
+  }catch(e){status.textContent='// ERROR: Failed to fetch logs';}
 }
 
 const now=new Date(), ago=new Date(now-24*60*60*1000);
@@ -216,6 +207,6 @@ document.getElementById('exportTo').value=now.toISOString().slice(0,16);
 document.getElementById('exportFrom').value=ago.toISOString().slice(0,16);
 
 pollLive();
-setInterval(pollLive,30000);
+setInterval(pollLive, 5000); // Poll every 5 seconds
 </script>
 {% endblock %}

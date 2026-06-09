@@ -151,7 +151,14 @@ def receive_packet():
 
 # ── API: reads from memory cache ─────────────────────
 @app.route('/api/stats')
-def get_stats(): return jsonify(cache['stats'])
+def get_stats():
+    try:
+        doc = fdb.collection('counters').document('stats').get()
+        if doc.exists:
+            d = doc.to_dict()
+            return jsonify({'total_packets':d.get('total',0),'malicious_packets':d.get('malicious',0),'new_alerts':d.get('alerts',0),'blocked_ips':d.get('blocked',0)})
+    except: pass
+    return jsonify(cache['stats'])
 
 @app.route('/api/logs')
 def get_logs(): return jsonify(list(cache['logs']))
@@ -246,16 +253,24 @@ def deactivate_user(uid):
 
 # ── Monitoring control ────────────────────────────────
 @app.route('/api/command')
-def get_command(): return jsonify({'command': cache['command']})
+def get_command():
+    try:
+        doc = fdb.collection('counters').document('command').get()
+        if doc.exists:
+            return jsonify({'command': doc.to_dict().get('value', 'stop')})
+    except: pass
+    return jsonify({'command': cache['command']})
 
 @app.route('/api/start', methods=['POST'])
 def start_monitoring():
     cache['command'] = 'start'
+    fb_write(lambda: fdb.collection('counters').document('command').set({'value':'start'}))
     return jsonify({'success':True, 'command':'start'})
 
 @app.route('/api/stop', methods=['POST'])
 def stop_monitoring():
     cache['command'] = 'stop'
+    fb_write(lambda: fdb.collection('counters').document('command').set({'value':'stop'}))
     return jsonify({'success':True, 'command':'stop'})
 
 # ── Password Reset ────────────────────────────────────
