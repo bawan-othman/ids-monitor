@@ -232,7 +232,10 @@ async function pollDashboard() {
     loadLogs();
 
     // Update map
-    logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
+    logs.slice(0,20).forEach(l=>{
+      addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS');
+      addMapMarker(l.dst_ip,l.src_ip,l.prediction==='MALICIOUS');
+    });
 
   } catch(e){}
 }
