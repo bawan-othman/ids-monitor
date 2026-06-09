@@ -132,123 +132,130 @@ const protocolChart=new Chart(document.getElementById('protocolChart'),{
     labels:{color:'#94a3b8',font:{family:"'Space Mono'"},padding:12}}}}
 });
 
-// ── World Map — Sulaymaniyah, Iraq ────────────────
+// ── World Map ─────────────────────────────────────
 const SENSOR_LAT = 36.1901;
 const SENSOR_LNG = 44.0094;
-
 const map = L.map('attackMap',{center:[30,20],zoom:2,zoomControl:true,attributionControl:false});
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
+L.marker([SENSOR_LAT,SENSOR_LNG],{icon:L.divIcon({
+  html:`<div style="width:18px;height:18px;border-radius:50%;background:#00d4ff;border:3px solid #fff;box-shadow:0 0 12px #00d4ff,0 0 24px rgba(0,212,255,0.4);"></div>`,
+  className:'',iconSize:[18,18],iconAnchor:[9,9]
+})}).addTo(map).bindPopup(`<div style="font-family:monospace;font-size:12px;line-height:1.6;">
+  <b style="color:#00d4ff">🛡 IDS SENSOR</b><br>IP: 192.168.0.111<br>Sulaymaniyah, Iraq<br>
+  <span style="color:#64748b">Raspberry Pi 5</span></div>`);
 
-L.marker([SENSOR_LAT, SENSOR_LNG], {
-  icon: L.divIcon({
-    html:`<div style="width:18px;height:18px;border-radius:50%;background:#00d4ff;border:3px solid #fff;box-shadow:0 0 12px #00d4ff,0 0 24px rgba(0,212,255,0.4);"></div>`,
-    className:'', iconSize:[18,18], iconAnchor:[9,9]
-  })
-}).addTo(map).bindPopup(`
-  <div style="font-family:monospace;font-size:12px;line-height:1.6;">
-    <b style="color:#00d4ff">🛡 IDS SENSOR</b><br>
-    IP: 192.168.0.111<br>
-    Sulaymaniyah, Iraq<br>
-    <span style="color:#64748b">Raspberry Pi 5</span>
-  </div>`);
-
-const plottedIPs={}, attackLines=[];
-
-function isPrivateIP(ip) {
-  return !ip ||
-    ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('127.') || ip === '0.0.0.0' ||
-    ip.startsWith('172.16.') || ip.startsWith('172.17.') || ip.startsWith('172.18.') ||
-    ip.startsWith('172.19.') || ip.startsWith('172.20.') || ip.startsWith('172.21.') ||
-    ip.startsWith('172.22.') || ip.startsWith('172.23.') || ip.startsWith('172.24.') ||
-    ip.startsWith('172.25.') || ip.startsWith('172.26.') || ip.startsWith('172.27.') ||
-    ip.startsWith('172.28.') || ip.startsWith('172.29.') || ip.startsWith('172.30.') ||
-    ip.startsWith('172.31.');
+const plottedIPs={},attackLines=[];
+function isPrivateIP(ip){
+  return !ip||ip.startsWith('192.168.')||ip.startsWith('10.')||ip.startsWith('127.')||ip==='0.0.0.0'||
+    ip.startsWith('172.16.')||ip.startsWith('172.17.')||ip.startsWith('172.18.')||ip.startsWith('172.19.')||
+    ip.startsWith('172.20.')||ip.startsWith('172.21.')||ip.startsWith('172.22.')||ip.startsWith('172.23.')||
+    ip.startsWith('172.24.')||ip.startsWith('172.25.')||ip.startsWith('172.26.')||ip.startsWith('172.27.')||
+    ip.startsWith('172.28.')||ip.startsWith('172.29.')||ip.startsWith('172.30.')||ip.startsWith('172.31.');
 }
-
-function addAttackLine(lat, lng, isMalicious) {
-  const color = isMalicious ? '#ff3b5c' : '#00d4ff';
-  const line = L.polyline([[lat,lng],[SENSOR_LAT,SENSOR_LNG]],
-    {color:color,weight:1,opacity:0.4,dashArray:'4 6'}).addTo(map);
+function addAttackLine(lat,lng,isMal){
+  const color=isMal?'#ff3b5c':'#00d4ff';
+  const line=L.polyline([[lat,lng],[SENSOR_LAT,SENSOR_LNG]],{color,weight:1,opacity:0.4,dashArray:'4 6'}).addTo(map);
   attackLines.push(line);
-  if(attackLines.length > 30) map.removeLayer(attackLines.shift());
+  if(attackLines.length>30) map.removeLayer(attackLines.shift());
 }
-
-function addMapMarker(srcIp, dstIp, isMalicious) {
-  const ip = isPrivateIP(srcIp) ? dstIp : srcIp;
-  if(!ip || isPrivateIP(ip)) return;
-  if(plottedIPs[ip]) {
-    if(isMalicious) addAttackLine(plottedIPs[ip].lat, plottedIPs[ip].lng, true);
-    return;
-  }
-  fetch(`https://ipapi.co/${ip}/json/`)
-    .then(r=>r.json())
-    .then(data=>{
-      if(!data.latitude||!data.longitude) return;
-      const lat=data.latitude, lng=data.longitude;
-      const color=isMalicious?'#ff3b5c':'#00d4ff';
-      L.circleMarker([lat,lng],{radius:isMalicious?9:5,fillColor:color,color:color,weight:1,opacity:0.9,fillOpacity:0.75})
-        .addTo(map)
-        .bindPopup(`<div style="font-family:monospace;font-size:12px;line-height:1.6;">
-          <b style="color:${color}">${isMalicious?'⚠ MALICIOUS':'✓ Normal'}</b><br>
-          IP: ${ip}<br>${data.city?data.city+', ':''}${data.country_name||'Unknown'}
-        </div>`);
-      plottedIPs[ip]={lat,lng};
-      addAttackLine(lat,lng,isMalicious);
-    }).catch(()=>{});
+function addMapMarker(srcIp,dstIp,isMal){
+  const ip=isPrivateIP(srcIp)?dstIp:srcIp;
+  if(!ip||isPrivateIP(ip)) return;
+  if(plottedIPs[ip]){if(isMal) addAttackLine(plottedIPs[ip].lat,plottedIPs[ip].lng,true); return;}
+  fetch(`https://ipapi.co/${ip}/json/`).then(r=>r.json()).then(data=>{
+    if(!data.latitude||!data.longitude) return;
+    const lat=data.latitude,lng=data.longitude,color=isMal?'#ff3b5c':'#00d4ff';
+    L.circleMarker([lat,lng],{radius:isMal?9:5,fillColor:color,color,weight:1,opacity:0.9,fillOpacity:0.75})
+      .addTo(map).bindPopup(`<div style="font-family:monospace;font-size:12px;line-height:1.6;">
+        <b style="color:${color}">${isMal?'⚠ MALICIOUS':'✓ Normal'}</b><br>
+        IP: ${ip}<br>${data.city?data.city+', ':''}${data.country_name||'Unknown'}</div>`);
+    plottedIPs[ip]={lat,lng};
+    addAttackLine(lat,lng,isMal);
+  }).catch(()=>{});
 }
 
 // ── WebSocket — real time updates ─────────────────
 socket.on('new_packet', data => {
-  const isMal = data.prediction==='MALICIOUS' || data.label==='MALICIOUS';
-
-  // Update stats
-  const t = document.getElementById('statTotal');
-  const m = document.getElementById('statMalicious');
-  const a = document.getElementById('statAlerts');
-  const total = parseInt(t.textContent||'0') + 1;
-  const mal   = parseInt(m.textContent||'0') + (isMal ? 1 : 0);
-  const norm  = total - mal;
-  t.textContent = fmt(total);
-  m.textContent = fmt(mal);
-  if(isMal) a.textContent = fmt(parseInt(a.textContent||'0') + 1);
-
-  // Update donut chart
-  donutChart.data.datasets[0].data = [norm, mal];
-  donutChart.update();
-
-  // Update protocol chart
-  const p = (data.protocol||'').toLowerCase();
-  const pd = protocolChart.data.datasets[0].data;
-  if(p.includes('tcp')) pd[0]++;
-  else if(p.includes('udp')) pd[1]++;
-  else if(p.includes('icmp')) pd[2]++;
-  else pd[3]++;
-  protocolChart.update();
-
-  // Update trend chart
-  const time = new Date().toLocaleTimeString('en-US',{hour12:false});
-  trendLabels.push(time); trendNormal.push(norm); trendBad.push(mal);
-  if(trendLabels.length > 20){ trendLabels.shift(); trendNormal.shift(); trendBad.shift(); }
-  trendChart.update();
-
-  // Update map
-  addMapMarker(data.src_ip, data.dst_ip, isMal);
-
-  // Update recent table
-  loadLogs();
+  updateFromPacket(data);
 });
 
-async function loadMapMarkers() {
-  try{
+function updateFromPacket(data) {
+  const isMal = data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
+  const t=document.getElementById('statTotal');
+  const m=document.getElementById('statMalicious');
+  const a=document.getElementById('statAlerts');
+  const total=parseInt(t.textContent||'0')+1;
+  const mal=parseInt(m.textContent||'0')+(isMal?1:0);
+  const norm=total-mal;
+  t.textContent=fmt(total); m.textContent=fmt(mal);
+  if(isMal) a.textContent=fmt(parseInt(a.textContent||'0')+1);
+  donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
+  const p=(data.protocol||'').toLowerCase(), pd=protocolChart.data.datasets[0].data;
+  if(p.includes('tcp')) pd[0]++; else if(p.includes('udp')) pd[1]++;
+  else if(p.includes('icmp')) pd[2]++; else pd[3]++;
+  protocolChart.update();
+  const time=new Date().toLocaleTimeString('en-US',{hour12:false});
+  trendLabels.push(time); trendNormal.push(norm); trendBad.push(mal);
+  if(trendLabels.length>20){trendLabels.shift();trendNormal.shift();trendBad.shift();}
+  trendChart.update();
+  addMapMarker(data.src_ip,data.dst_ip,isMal);
+}
+
+// ── Polling fallback — updates everything every 5s ─
+let lastLogId = null;
+async function pollDashboard() {
+  try {
+    // Load logs
     const logs = await fetch('/api/logs').then(r=>r.json());
+    if(!logs.length) return;
+
+    // Update recent table
+    loadLogs();
+
+    // Update map markers
+    logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
+
+    // Update charts from logs
+    const mal  = logs.filter(l=>l.prediction==='MALICIOUS').length;
+    const norm = logs.length - mal;
+    donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
+
+    // Protocol counts
+    const c={tcp:0,udp:0,icmp:0,other:0};
+    logs.forEach(l=>{
+      const p=(l.protocol||'').toLowerCase();
+      if(p.includes('tcp')) c.tcp++; else if(p.includes('udp')) c.udp++;
+      else if(p.includes('icmp')) c.icmp++; else c.other++;
+    });
+    protocolChart.data.datasets[0].data=[c.tcp,c.udp,c.icmp,c.other];
+    protocolChart.update();
+
+    // Trend from logs
+    const last=logs.slice(0,20).reverse();
+    trendLabels.length=0; trendNormal.length=0; trendBad.length=0;
+    let n=0,m=0;
+    last.forEach(l=>{
+      trendLabels.push(l.captured_at?l.captured_at.split(' ')[1]:'');
+      if(l.prediction==='MALICIOUS') m++; else n++;
+      trendNormal.push(n); trendBad.push(m);
+    });
+    trendChart.update();
+
+  } catch(e){}
+}
+
+async function loadMapMarkers(){
+  try{
+    const logs=await fetch('/api/logs').then(r=>r.json());
     logs.slice(0,30).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
   }catch(e){}
 }
 
-// ── Page load ─────────────────────────────────────
+// ── Initial load + polling every 5 seconds ────────
 loadStats();
 loadLogs();
 loadMapMarkers();
+setInterval(pollDashboard, 5000);
 setInterval(loadStats, 30000);
 </script>
 {% endblock %}
