@@ -149,31 +149,12 @@ def receive_packet():
     if is_mal: socketio.emit('new_alert', entry)
     return jsonify({'success':True})
 
-# ── API: reads from memory cache ─────────────────────
+# ── API: reads from memory cache only ────────────────
 @app.route('/api/stats')
-def get_stats():
-    try:
-        doc = fdb.collection('counters').document('stats').get()
-        if doc.exists:
-            d = doc.to_dict()
-            return jsonify({'total_packets':d.get('total',0),'malicious_packets':d.get('malicious',0),'new_alerts':d.get('alerts',0),'blocked_ips':d.get('blocked',0)})
-    except: pass
-    return jsonify(cache['stats'])
+def get_stats(): return jsonify(cache['stats'])
 
 @app.route('/api/logs')
-def get_logs():
-    try:
-        docs = fdb.collection('traffic_logs').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50).get()
-        result = []
-        for d in docs:
-            r = d.to_dict()
-            try: ts = r.get('timestamp').strftime('%Y-%m-%d %H:%M:%S')
-            except: ts = ''
-            result.append({'captured_at':ts,'src_ip':r.get('src_ip',''),'dst_ip':r.get('dst_ip',''),
-                'protocol':r.get('protocol',''),'length':r.get('length',0),
-                'prediction':r.get('label','Normal'),'confidence':r.get('confidence',0),'attack_type':r.get('attack_type','-')})
-        return jsonify(result)
-    except: return jsonify(list(cache['logs']))
+def get_logs(): return jsonify(list(cache['logs']))
 
 @app.route('/api/alerts')
 def get_alerts(): return jsonify(list(cache['alerts']))
@@ -305,7 +286,7 @@ def reset_password():
         msg['Subject'] = 'IDS Monitor - Password Reset'
         msg.attach(MIMEText(f"""
         <html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;padding:30px;">
-        <h2 style="color:#00d4ff;">IDS Monitor — Password Reset</h2>
+        <h2 style="color:#00d4ff;">IDS Monitor - Password Reset</h2>
         <p>Click the link below to reset your password:</p>
         <a href="{reset_link}" style="background:#00d4ff;color:#000;padding:12px 24px;
         border-radius:8px;text-decoration:none;font-weight:bold;">Reset Password</a>
@@ -338,8 +319,7 @@ def reset_page(token):
             return '<h2 style="font-family:monospace;color:#00ff88;">Password reset successful! <a href="/login" style="color:#00d4ff;">Login</a></h2>'
         except:
             return '<h2 style="font-family:monospace;color:red;">Error resetting password.</h2>'
-    return f'''
-    <html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;display:flex;
+    return f'''<html><body style="font-family:monospace;background:#0f1520;color:#e2e8f0;display:flex;
     align-items:center;justify-content:center;min-height:100vh;margin:0;">
     <div style="background:#1a2235;border:1px solid #2d3748;border-radius:16px;padding:40px;width:360px;">
     <h2 style="color:#00d4ff;">Reset Password</h2>
@@ -350,8 +330,7 @@ def reset_page(token):
     margin:8px 0 20px;box-sizing:border-box;">
     <button type="submit" style="width:100%;padding:12px;background:#00d4ff;color:#000;
     border:none;border-radius:8px;font-weight:bold;cursor:pointer;">Set New Password</button>
-    </form></div></body></html>
-    '''
+    </form></div></body></html>'''
 
 @app.route('/api/users/<uid>', methods=['PUT'])
 def edit_user(uid):
@@ -377,7 +356,6 @@ def export_logs():
     to_dt   = request.args.get('to')
     filter_ = request.args.get('filter', 'all')
     try:
-        from datetime import datetime
         from_ts = datetime.fromisoformat(from_dt)
         to_ts   = datetime.fromisoformat(to_dt)
         query   = fdb.collection('traffic_logs')\
@@ -393,22 +371,14 @@ def export_logs():
             if filter_ != 'all' and r.get('label') != filter_: continue
             try: captured_at = ts.strftime('%Y-%m-%d %H:%M:%S')
             except: captured_at = ''
-            result.append({
-                'captured_at': captured_at,
-                'src_ip':      r.get('src_ip',''),
-                'dst_ip':      r.get('dst_ip',''),
-                'protocol':    r.get('protocol',''),
-                'length':      r.get('length',0),
-                'prediction':  r.get('label','Normal'),
-                'confidence':  r.get('confidence',0),
-                'attack_type': r.get('attack_type','-')
-            })
+            result.append({'captured_at':captured_at,'src_ip':r.get('src_ip',''),
+                'dst_ip':r.get('dst_ip',''),'protocol':r.get('protocol',''),
+                'length':r.get('length',0),'prediction':r.get('label','Normal'),
+                'confidence':r.get('confidence',0),'attack_type':r.get('attack_type','-')})
         return jsonify(result)
     except Exception as e:
         print(f"Export error: {e}")
         return jsonify([])
-
-
 
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
