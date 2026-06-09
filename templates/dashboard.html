@@ -94,9 +94,9 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <style>
-.leaflet-popup-content-wrapper { background:#0f1520 !important; border:1px solid rgba(255,255,255,0.1) !important; border-radius:8px !important; color:#fff !important; }
-.leaflet-popup-tip { background:#0f1520 !important; }
-.leaflet-popup-close-button { color:#64748b !important; }
+.leaflet-popup-content-wrapper{background:#0f1520!important;border:1px solid rgba(255,255,255,0.1)!important;border-radius:8px!important;color:#fff!important;}
+.leaflet-popup-tip{background:#0f1520!important;}
+.leaflet-popup-close-button{color:#64748b!important;}
 </style>
 <script>
 // ── Charts ────────────────────────────────────────
@@ -132,14 +132,13 @@ const protocolChart=new Chart(document.getElementById('protocolChart'),{
     labels:{color:'#94a3b8',font:{family:"'Space Mono'"},padding:12}}}}
 });
 
-// ── World Map ─────────────────────────────────────
+// ── World Map — Sulaymaniyah, Iraq ────────────────
 const SENSOR_LAT = 36.1901;
 const SENSOR_LNG = 44.0094;
 
 const map = L.map('attackMap',{center:[30,20],zoom:2,zoomControl:true,attributionControl:false});
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
 
-// IDS Sensor marker — Sulaymaniyah, Iraq
 L.marker([SENSOR_LAT, SENSOR_LNG], {
   icon: L.divIcon({
     html:`<div style="width:18px;height:18px;border-radius:50%;background:#00d4ff;border:3px solid #fff;box-shadow:0 0 12px #00d4ff,0 0 24px rgba(0,212,255,0.4);"></div>`,
@@ -155,19 +154,15 @@ L.marker([SENSOR_LAT, SENSOR_LNG], {
 
 const plottedIPs={}, attackLines=[];
 
-// Only exclude truly private/loopback IPs — allow 8.8.8.8 and other public IPs
 function isPrivateIP(ip) {
   return !ip ||
-    ip.startsWith('192.168.') ||
-    ip.startsWith('10.') ||
+    ip.startsWith('192.168.') || ip.startsWith('10.') || ip.startsWith('127.') || ip === '0.0.0.0' ||
     ip.startsWith('172.16.') || ip.startsWith('172.17.') || ip.startsWith('172.18.') ||
     ip.startsWith('172.19.') || ip.startsWith('172.20.') || ip.startsWith('172.21.') ||
     ip.startsWith('172.22.') || ip.startsWith('172.23.') || ip.startsWith('172.24.') ||
     ip.startsWith('172.25.') || ip.startsWith('172.26.') || ip.startsWith('172.27.') ||
     ip.startsWith('172.28.') || ip.startsWith('172.29.') || ip.startsWith('172.30.') ||
-    ip.startsWith('172.31.') ||
-    ip.startsWith('127.') ||
-    ip === '0.0.0.0';
+    ip.startsWith('172.31.');
 }
 
 function addAttackLine(lat, lng, isMalicious) {
@@ -180,7 +175,7 @@ function addAttackLine(lat, lng, isMalicious) {
 
 function addMapMarker(srcIp, dstIp, isMalicious) {
   const ip = isPrivateIP(srcIp) ? dstIp : srcIp;
-  if(isPrivateIP(ip)) return;
+  if(!ip || isPrivateIP(ip)) return;
   if(plottedIPs[ip]) {
     if(isMalicious) addAttackLine(plottedIPs[ip].lat, plottedIPs[ip].lng, true);
     return;
@@ -202,10 +197,20 @@ function addMapMarker(srcIp, dstIp, isMalicious) {
     }).catch(()=>{});
 }
 
-// ── WebSocket ─────────────────────────────────────
+// ── WebSocket — drives everything live ────────────
 socket.on('new_packet', data => {
-  loadStats(); loadLogs(); updateTrend(); updateProtocolChart();
+  // Stats: increment in browser (no Firebase read on every packet)
+  const t=document.getElementById('statTotal');
+  const m=document.getElementById('statMalicious');
+  const a=document.getElementById('statAlerts');
   const isMal = data.prediction==='MALICIOUS' || data.label==='MALICIOUS';
+  t.textContent = fmt(parseInt(t.textContent||'0')+1);
+  if(isMal){ m.textContent=fmt(parseInt(m.textContent||'0')+1); a.textContent=fmt(parseInt(a.textContent||'0')+1); }
+  // Logs + charts
+  loadLogs();
+  updateTrend();
+  updateProtocolChart();
+  // Map
   addMapMarker(data.src_ip, data.dst_ip, isMal);
 });
 
@@ -245,7 +250,12 @@ async function loadMapMarkers() {
   }catch(e){}
 }
 
-loadStats(); loadLogs(); updateTrend(); updateProtocolChart(); loadMapMarkers();
-setInterval(()=>{loadStats();loadLogs();updateTrend();updateProtocolChart();},5000);
+// ── On page load: read stats ONCE from Firebase ───
+// Then WebSocket keeps them updated — no polling
+loadStats();   // 1 Firebase read on page load only
+loadLogs();
+updateTrend();
+updateProtocolChart();
+loadMapMarkers();
 </script>
 {% endblock %}
