@@ -199,18 +199,41 @@ function addMapMarker(srcIp, dstIp, isMalicious) {
 
 // ── WebSocket — drives everything live ────────────
 socket.on('new_packet', data => {
-  // Stats: increment in browser (no Firebase read on every packet)
+  const isMal = data.prediction==='MALICIOUS' || data.label==='MALICIOUS';
+
+  // Update stats counters
   const t=document.getElementById('statTotal');
   const m=document.getElementById('statMalicious');
   const a=document.getElementById('statAlerts');
-  const isMal = data.prediction==='MALICIOUS' || data.label==='MALICIOUS';
-  t.textContent = fmt(parseInt(t.textContent||'0')+1);
-  if(isMal){ m.textContent=fmt(parseInt(m.textContent||'0')+1); a.textContent=fmt(parseInt(a.textContent||'0')+1); }
-  // Logs + charts
+  const total = parseInt(t.textContent||'0')+1;
+  const mal   = parseInt(m.textContent||'0')+(isMal?1:0);
+  const norm  = total - mal;
+  t.textContent = fmt(total);
+  if(isMal){ m.textContent=fmt(mal); a.textContent=fmt(parseInt(a.textContent||'0')+1); }
+
+  // Update donut chart immediately
+  donutChart.data.datasets[0].data=[norm, mal];
+  donutChart.update();
+
+  // Update protocol chart immediately
+  const p=(data.protocol||'').toLowerCase();
+  const pd=protocolChart.data.datasets[0].data;
+  if(p.includes('tcp')) pd[0]++;
+  else if(p.includes('udp')) pd[1]++;
+  else if(p.includes('icmp')) pd[2]++;
+  else pd[3]++;
+  protocolChart.update();
+
+  // Update trend chart immediately
+  const time=new Date().toLocaleTimeString('en-US',{hour12:false});
+  trendLabels.push(time);
+  trendNormal.push(norm);
+  trendBad.push(mal);
+  if(trendLabels.length>20){ trendLabels.shift(); trendNormal.shift(); trendBad.shift(); }
+  trendChart.update();
+
+  // Update logs table and map
   loadLogs();
-  updateTrend();
-  updateProtocolChart();
-  // Map
   addMapMarker(data.src_ip, data.dst_ip, isMal);
 });
 
