@@ -151,7 +151,14 @@ def receive_packet():
 
 # ── API: reads from memory cache only ────────────────
 @app.route('/api/stats')
-def get_stats(): return jsonify(cache['stats'])
+def get_stats():
+    try:
+        doc = fdb.collection('counters').document('stats').get()
+        blocked = len(list(fdb.collection('blocklist').where('is_active','==',True).get()))
+        s = doc.to_dict() if doc.exists else {}
+        return jsonify({'total_packets':s.get('total',0),'malicious_packets':s.get('malicious',0),
+                        'new_alerts':s.get('alerts',0),'blocked_ips':blocked})
+    except: return jsonify(cache['stats'])
 
 @app.route('/api/logs')
 def get_logs():

@@ -3,7 +3,7 @@
 // Live clock
 function updateClock() {
   const el = document.getElementById('liveClock');
-  if (!el) return;
+  if (!el) return; 
   const now = new Date();
   el.textContent = now.toLocaleTimeString('en-US', { hour12: false }) + ' UTC';
 }

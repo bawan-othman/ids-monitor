@@ -208,15 +208,11 @@ async function pollDashboard() {
   try {
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
-
-    
     loadLogs();
+    loadStats();
     logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
     const mal=logs.filter(l=>l.prediction==='MALICIOUS').length;
     const norm=logs.length-mal;
-    document.getElementById('statTotal').textContent = fmt(logs.length);
-    document.getElementById('statMalicious').textContent = fmt(mal);
-    document.getElementById('statAlerts').textContent = fmt(mal);
     donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
     const c={tcp:0,udp:0,icmp:0,other:0};
     logs.forEach(l=>{
@@ -245,7 +241,8 @@ async function loadMapMarkers(){
 }
 
 // ── Initial load + polling every 5 seconds ────────
-lloadLogs();
+loadLogs();
+loadStats();
 loadMapMarkers();
 setInterval(pollDashboard, 5000);
 </script>
