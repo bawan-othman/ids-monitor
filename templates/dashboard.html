@@ -205,19 +205,28 @@ let sessionDelta = {total:0, mal:0, norm:0};
 socket.on('new_packet', data => {
   const isMal = data.prediction==='MALICIOUS' || data.label==='MALICIOUS';
 
-  // Increment session delta
-  sessionDelta.total++;
-  if(isMal) sessionDelta.mal++; else sessionDelta.norm++;
+  // Update protocol chart immediately
+  const p=(data.protocol||'').toLowerCase();
+  const pd=protocolChart.data.datasets[0].data;
+  if(p.includes('tcp')) pd[0]++; else if(p.includes('udp')) pd[1]++;
+  else if(p.includes('icmp')) pd[2]++; else pd[3]++;
+  protocolChart.update();
 
-  // Display = firebase base + session delta
-  const total = sessionBase.total + sessionDelta.total;
-  const mal   = sessionBase.mal   + sessionDelta.mal;
-  const norm  = sessionBase.norm  + sessionDelta.norm;
+  // Update trend chart immediately
+  const total=parseInt(document.getElementById('statTotal').textContent||'0');
+  const mal=parseInt(document.getElementById('statMalicious').textContent||'0');
+  const norm=total-mal;
+  const time=new Date().toLocaleTimeString('en-US',{hour12:false});
+  trendLabels.push(time); trendNormal.push(norm); trendBad.push(mal);
+  if(trendLabels.length>20){trendLabels.shift();trendNormal.shift();trendBad.shift();}
+  trendChart.update();
 
-  document.getElementById('statTotal').textContent    = fmt(total);
-  document.getElementById('statMalicious').textContent = fmt(mal);
-  if(isMal) document.getElementById('statAlerts').textContent = fmt(
-    parseInt(document.getElementById('statAlerts').textContent||'0')+1);
+  // Update map
+  addMapMarker(data.src_ip, data.dst_ip, isMal);
+
+  // Reload logs table
+  loadLogs();
+});
 
   // Donut chart
   donutChart.data.datasets[0].data=[norm, mal];
@@ -269,8 +278,9 @@ async function loadMapMarkers() {
 }
 
 // ── Initial load ──────────────────────────────────
-initStats();
+loadStats();
 loadLogs();
 loadMapMarkers();
+setInterval(loadStats, 30000);
 </script>
 {% endblock %}
