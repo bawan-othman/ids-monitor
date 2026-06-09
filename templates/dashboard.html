@@ -203,34 +203,29 @@ function updateFromPacket(data) {
 
 // ── Polling fallback — updates everything every 5s ─
 let lastLogId = null;
+let lastTimestamp = null;
 async function pollDashboard() {
   try {
-    // Load logs
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
 
-    // Update recent table
+    // Only update if new data arrived
+    const newest = logs[0].captured_at;
+    if(newest === lastTimestamp) return;
+    lastTimestamp = newest;
+
     loadLogs();
-
-    // Update map markers
     logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
-
-    // Update charts from logs
-    const mal  = logs.filter(l=>l.prediction==='MALICIOUS').length;
-    const norm = logs.length - mal;
+    const mal=logs.filter(l=>l.prediction==='MALICIOUS').length;
+    const norm=logs.length-mal;
     donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
-
-    // Protocol counts
     const c={tcp:0,udp:0,icmp:0,other:0};
     logs.forEach(l=>{
       const p=(l.protocol||'').toLowerCase();
       if(p.includes('tcp')) c.tcp++; else if(p.includes('udp')) c.udp++;
       else if(p.includes('icmp')) c.icmp++; else c.other++;
     });
-    protocolChart.data.datasets[0].data=[c.tcp,c.udp,c.icmp,c.other];
-    protocolChart.update();
-
-    // Trend from logs
+    protocolChart.data.datasets[0].data=[c.tcp,c.udp,c.icmp,c.other]; protocolChart.update();
     const last=logs.slice(0,20).reverse();
     trendLabels.length=0; trendNormal.length=0; trendBad.length=0;
     let n=0,m=0;
@@ -240,7 +235,6 @@ async function pollDashboard() {
       trendNormal.push(n); trendBad.push(m);
     });
     trendChart.update();
-
   } catch(e){}
 }
 
