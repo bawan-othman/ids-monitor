@@ -343,7 +343,7 @@ def delete_user(uid):
         return jsonify({'success':True})
     except Exception as e: return jsonify({'success':False,'message':str(e)})
 
-    @app.route('/api/export')
+@app.route('/api/export')
 def export_logs():
     if 'user_id' not in session: return jsonify({'error':'Unauthorized'}), 401
     from_dt = request.args.get('from')
