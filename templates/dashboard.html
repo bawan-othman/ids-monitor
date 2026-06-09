@@ -209,11 +209,7 @@ async function pollDashboard() {
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
 
-    // Only update if new data arrived
-    const newest = logs[0].captured_at;
-    if(newest === lastTimestamp) return;
-    lastTimestamp = newest;
-
+    
     loadLogs();
     logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
     const mal=logs.filter(l=>l.prediction==='MALICIOUS').length;
