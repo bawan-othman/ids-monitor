@@ -181,14 +181,15 @@ socket.on('new_packet', data => {
 
 function updateFromPacket(data) {
   const isMal = data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
-  const t=document.getElementById('statTotal');
-  const m=document.getElementById('statMalicious');
-  const a=document.getElementById('statAlerts');
-  const total=parseInt(t.textContent||'0')+1;
-  const mal=parseInt(m.textContent||'0')+(isMal?1:0);
-  const norm=total-mal;
-  t.textContent=fmt(total); m.textContent=fmt(mal);
-  if(isMal) a.textContent=fmt(parseInt(a.textContent||'0')+1);
+  const t = document.getElementById('statTotal');
+  const m = document.getElementById('statMalicious');
+  const a = document.getElementById('statAlerts');
+  const total = (parseInt(t.textContent.replace(/,/g,''))||0) + 1;
+  const mal   = (parseInt(m.textContent.replace(/,/g,''))||0) + (isMal?1:0);
+  const norm  = total - mal;
+  t.textContent = fmt(total);
+  m.textContent = fmt(mal);
+  if(isMal) a.textContent = fmt((parseInt(a.textContent.replace(/,/g,''))||0) + 1);
   donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
   const p=(data.protocol||'').toLowerCase(), pd=protocolChart.data.datasets[0].data;
   if(p.includes('tcp')) pd[0]++; else if(p.includes('udp')) pd[1]++;
