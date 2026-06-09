@@ -379,5 +379,16 @@ def export_logs():
         print(f"Export error: {e}")
         return jsonify([])
 
+@app.route('/api/geoip/<ip>')
+def geoip(ip):
+    import urllib.request
+    try:
+        url = f'http://ip-api.com/json/{ip}?fields=lat,lon,city,country'
+        req = urllib.request.urlopen(url, timeout=5)
+        data = json.loads(req.read().decode())
+        return jsonify({'lat':data.get('lat'),'lon':data.get('lon'),
+                       'city':data.get('city',''),'country':data.get('country','')})
+    except: return jsonify({'lat':None,'lon':None})
+
 if __name__ == '__main__':
     socketio.run(app, host='0.0.0.0', port=5000, debug=True)
