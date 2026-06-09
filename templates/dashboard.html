@@ -157,20 +157,32 @@ function addAttackLine(lat,lng,isMal){
   attackLines.push(line);
   if(attackLines.length>30) map.removeLayer(attackLines.shift());
 }
+const ipQueue=[], ipLookupRunning={v:false};
 function addMapMarker(srcIp,dstIp,isMal){
   const ip=isPrivateIP(srcIp)?dstIp:srcIp;
   if(!ip||isPrivateIP(ip)) return;
   if(plottedIPs[ip]){if(isMal) addAttackLine(plottedIPs[ip].lat,plottedIPs[ip].lng,true); return;}
-  fetch(`https://ipapi.co/${ip}/json/`).then(r=>r.json()).then(data=>{
-    if(!data.latitude||!data.longitude) return;
-    const lat=data.latitude,lng=data.longitude,color=isMal?'#ff3b5c':'#00d4ff';
-    L.circleMarker([lat,lng],{radius:isMal?9:5,fillColor:color,color,weight:1,opacity:0.9,fillOpacity:0.75})
-      .addTo(map).bindPopup(`<div style="font-family:monospace;font-size:12px;line-height:1.6;">
-        <b style="color:${color}">${isMal?'⚠ MALICIOUS':'✓ Normal'}</b><br>
-        IP: ${ip}<br>${data.city?data.city+', ':''}${data.country_name||'Unknown'}</div>`);
-    plottedIPs[ip]={lat,lng};
-    addAttackLine(lat,lng,isMal);
-  }).catch(()=>{});
+  ipQueue.push({ip,isMal});
+  if(!ipLookupRunning.v) processQueue();
+}
+async function processQueue(){
+  if(!ipQueue.length){ipLookupRunning.v=false; return;}
+  ipLookupRunning.v=true;
+  const {ip,isMal}=ipQueue.shift();
+  if(plottedIPs[ip]){processQueue(); return;}
+  try{
+    const data=await fetch(`https://ipapi.co/${ip}/json/`).then(r=>r.json());
+    if(data.latitude&&data.longitude){
+      const lat=data.latitude,lng=data.longitude,color=isMal?'#ff3b5c':'#00d4ff';
+      L.circleMarker([lat,lng],{radius:isMal?9:5,fillColor:color,color,weight:1,opacity:0.9,fillOpacity:0.75})
+        .addTo(map).bindPopup(`<div style="font-family:monospace;font-size:12px;line-height:1.6;">
+          <b style="color:${color}">${isMal?'⚠ MALICIOUS':'✓ Normal'}</b><br>
+          IP: ${ip}<br>${data.city?data.city+', ':''}${data.country_name||'Unknown'}</div>`);
+      plottedIPs[ip]={lat,lng};
+      addAttackLine(lat,lng,isMal);
+    }
+  }catch(e){}
+  setTimeout(processQueue, 1000);
 }
 
 // ── WebSocket — instant updates on new packet ─────
