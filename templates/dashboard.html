@@ -171,13 +171,13 @@ async function processQueue(){
   const {ip,isMal}=ipQueue.shift();
   if(plottedIPs[ip]){processQueue(); return;}
   try{
-    const data=await fetch(`http://ip-api.com/json/${ip}`).then(r=>r.json());
-    if(data.lat&&data.lon){
-      const lat=data.lat,lng=data.lon,color=isMal?'#ff3b5c':'#00d4ff';
+    const data=await fetch(`https://freeipapi.com/api/json/${ip}`).then(r=>r.json());
+    if(data.latitude&&data.longitude){
+      const lat=data.latitude,lng=data.longitude,color=isMal?'#ff3b5c':'#00d4ff';
       L.circleMarker([lat,lng],{radius:isMal?9:5,fillColor:color,color,weight:1,opacity:0.9,fillOpacity:0.75})
         .addTo(map).bindPopup(`<div style="font-family:monospace;font-size:12px;line-height:1.6;">
           <b style="color:${color}">${isMal?'⚠ MALICIOUS':'✓ Normal'}</b><br>
-          IP: ${ip}<br>${data.city?data.city+', ':''}${data.country||'Unknown'}</div>`);
+          IP: ${ip}<br>${data.cityName?data.cityName+', ':''}${data.countryName||'Unknown'}</div>`);
       plottedIPs[ip]={lat,lng};
       addAttackLine(lat,lng,isMal);
     }
