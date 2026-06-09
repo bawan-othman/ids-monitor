@@ -133,9 +133,8 @@ const protocolChart=new Chart(document.getElementById('protocolChart'),{
 });
 
 // ── World Map ─────────────────────────────────────
-const SENSOR_LAT = 36.1901;
-const SENSOR_LNG = 44.0094;
-const map = L.map('attackMap',{center:[30,20],zoom:2,zoomControl:true,attributionControl:false});
+const SENSOR_LAT=36.1901, SENSOR_LNG=44.0094;
+const map=L.map('attackMap',{center:[30,20],zoom:2,zoomControl:true,attributionControl:false});
 L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',{maxZoom:19}).addTo(map);
 L.marker([SENSOR_LAT,SENSOR_LNG],{icon:L.divIcon({
   html:`<div style="width:18px;height:18px;border-radius:50%;background:#00d4ff;border:3px solid #fff;box-shadow:0 0 12px #00d4ff,0 0 24px rgba(0,212,255,0.4);"></div>`,
@@ -174,53 +173,51 @@ function addMapMarker(srcIp,dstIp,isMal){
   }).catch(()=>{});
 }
 
-// ── WebSocket — real time updates ─────────────────
+// ── WebSocket — instant updates on new packet ─────
 socket.on('new_packet', data => {
-  updateFromPacket(data);
+  const isMal = data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
+  // Update stat counters
+  const t=document.getElementById('statTotal');
+  const m=document.getElementById('statMalicious');
+  const a=document.getElementById('statAlerts');
+  const total=(parseInt(t.textContent.replace(/,/g,''))||0)+1;
+  const mal=(parseInt(m.textContent.replace(/,/g,''))||0)+(isMal?1:0);
+  const norm=total-mal;
+  t.textContent=fmt(total);
+  m.textContent=fmt(mal);
+  if(isMal) a.textContent=fmt((parseInt(a.textContent.replace(/,/g,''))||0)+1);
+  // Update map
+  addMapMarker(data.src_ip,data.dst_ip,isMal);
 });
 
-function updateFromPacket(data) {
-  const isMal = data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
-  const t = document.getElementById('statTotal');
-  const m = document.getElementById('statMalicious');
-  const a = document.getElementById('statAlerts');
-  const total = (parseInt(t.textContent.replace(/,/g,''))||0) + 1;
-  const mal   = (parseInt(m.textContent.replace(/,/g,''))||0) + (isMal?1:0);
-  const norm  = total - mal;
-  t.textContent = fmt(total);
-  m.textContent = fmt(mal);
-  if(isMal) a.textContent = fmt((parseInt(a.textContent.replace(/,/g,''))||0) + 1);
-  donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
-  const p=(data.protocol||'').toLowerCase(), pd=protocolChart.data.datasets[0].data;
-  if(p.includes('tcp')) pd[0]++; else if(p.includes('udp')) pd[1]++;
-  else if(p.includes('icmp')) pd[2]++; else pd[3]++;
-  protocolChart.update();
-  const time=new Date().toLocaleTimeString('en-US',{hour12:false});
-  trendLabels.push(time); trendNormal.push(norm); trendBad.push(mal);
-  if(trendLabels.length>20){trendLabels.shift();trendNormal.shift();trendBad.shift();}
-  trendChart.update();
-  addMapMarker(data.src_ip,data.dst_ip,isMal);
-}
-
-// ── Polling fallback — updates everything every 5s ─
-let lastLogId = null;
-let lastTimestamp = null;
+// ── Polling every 5s — updates charts + table + stats
 async function pollDashboard() {
   try {
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
-    loadLogs();
-    logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
-    const mal=logs.filter(l=>l.prediction==='MALICIOUS').length;
-    const norm=logs.length-mal;
-    donutChart.data.datasets[0].data=[norm,mal]; donutChart.update();
+
+    // Update stat counters from logs
+    const mal  = logs.filter(l=>l.prediction==='MALICIOUS').length;
+    const norm = logs.length - mal;
+    document.getElementById('statTotal').textContent    = fmt(logs.length);
+    document.getElementById('statMalicious').textContent = fmt(mal);
+    document.getElementById('statAlerts').textContent   = fmt(mal);
+
+    // Update donut chart
+    donutChart.data.datasets[0].data=[norm,mal];
+    donutChart.update();
+
+    // Update protocol chart
     const c={tcp:0,udp:0,icmp:0,other:0};
     logs.forEach(l=>{
       const p=(l.protocol||'').toLowerCase();
       if(p.includes('tcp')) c.tcp++; else if(p.includes('udp')) c.udp++;
       else if(p.includes('icmp')) c.icmp++; else c.other++;
     });
-    protocolChart.data.datasets[0].data=[c.tcp,c.udp,c.icmp,c.other]; protocolChart.update();
+    protocolChart.data.datasets[0].data=[c.tcp,c.udp,c.icmp,c.other];
+    protocolChart.update();
+
+    // Update trend chart
     const last=logs.slice(0,20).reverse();
     trendLabels.length=0; trendNormal.length=0; trendBad.length=0;
     let n=0,m=0;
@@ -230,19 +227,18 @@ async function pollDashboard() {
       trendNormal.push(n); trendBad.push(m);
     });
     trendChart.update();
+
+    // Update recent table
+    loadLogs();
+
+    // Update map
+    logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
+
   } catch(e){}
 }
 
-async function loadMapMarkers(){
-  try{
-    const logs=await fetch('/api/logs').then(r=>r.json());
-    logs.slice(0,30).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
-  }catch(e){}
-}
-
-// ── Initial load + polling every 5 seconds ────────
-loadLogs();
-loadMapMarkers();
+// ── Initial load ──────────────────────────────────
+pollDashboard();
 setInterval(pollDashboard, 5000);
 </script>
 {% endblock %}
