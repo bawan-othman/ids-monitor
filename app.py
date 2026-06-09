@@ -151,29 +151,10 @@ def receive_packet():
 
 # ── API: reads from memory cache only ────────────────
 @app.route('/api/stats')
-def get_stats():
-    try:
-        doc = fdb.collection('counters').document('stats').get()
-        blocked = len(list(fdb.collection('blocklist').where('is_active','==',True).get()))
-        s = doc.to_dict() if doc.exists else {}
-        return jsonify({'total_packets':s.get('total',0),'malicious_packets':s.get('malicious',0),
-                        'new_alerts':s.get('alerts',0),'blocked_ips':blocked})
-    except: return jsonify(cache['stats'])
+def get_stats(): return jsonify(cache['stats'])
 
 @app.route('/api/logs')
-def get_logs():
-    try:
-        docs = fdb.collection('traffic_logs').order_by('timestamp', direction=firestore.Query.DESCENDING).limit(50).get()
-        result = []
-        for d in docs:
-            r = d.to_dict()
-            try: ts = r.get('timestamp').strftime('%Y-%m-%d %H:%M:%S')
-            except: ts = ''
-            result.append({'captured_at':ts,'src_ip':r.get('src_ip',''),'dst_ip':r.get('dst_ip',''),
-                'protocol':r.get('protocol',''),'length':r.get('length',0),
-                'prediction':r.get('label','Normal'),'confidence':r.get('confidence',0),'attack_type':r.get('attack_type','-')})
-        return jsonify(result)
-    except: return jsonify(list(cache['logs']))
+def get_logs(): return jsonify(list(cache['logs']))
 @app.route('/api/alerts')
 def get_alerts(): return jsonify(list(cache['alerts']))
 

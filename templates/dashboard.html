@@ -209,7 +209,6 @@ async function pollDashboard() {
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
     loadLogs();
-    loadStats();
     logs.slice(0,10).forEach(l=>addMapMarker(l.src_ip,l.dst_ip,l.prediction==='MALICIOUS'));
     const mal=logs.filter(l=>l.prediction==='MALICIOUS').length;
     const norm=logs.length-mal;
@@ -242,7 +241,6 @@ async function loadMapMarkers(){
 
 // ── Initial load + polling every 5 seconds ────────
 loadLogs();
-loadStats();
 loadMapMarkers();
 setInterval(pollDashboard, 5000);
 </script>
