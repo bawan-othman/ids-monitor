@@ -198,36 +198,25 @@ socket.on('new_packet', data => {
   t.textContent=fmt(total);
   m.textContent=fmt(mal);
   if(isMal) a.textContent=fmt((parseInt(a.textContent.replace(/,/g,''))||0)+1);
-  // Update donut live
-  donutChart.data.datasets[0].data=[norm,mal];
-  donutChart.update();
   // Update map
   addMapMarker(data.src_ip,data.dst_ip,isMal);
 });
 
 // ── Polling every 5s — updates charts + table + stats
-// Uses Math.max so stat numbers never jump DOWN between server instances.
 async function pollDashboard() {
   try {
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
 
-    // Stats from logs, but never go lower than what's already shown
+    // Update stat counters from logs
     const mal  = logs.filter(l=>l.prediction==='MALICIOUS').length;
-    const t=document.getElementById('statTotal');
-    const m=document.getElementById('statMalicious');
-    const a=document.getElementById('statAlerts');
-    const curTotal=parseInt(t.textContent.replace(/,/g,''))||0;
-    const curMal=parseInt(m.textContent.replace(/,/g,''))||0;
-    const curAlert=parseInt(a.textContent.replace(/,/g,''))||0;
-    const newTotal=Math.max(curTotal, logs.length);
-    const newMal=Math.max(curMal, mal);
-    t.textContent=fmt(newTotal);
-    m.textContent=fmt(newMal);
-    a.textContent=fmt(Math.max(curAlert, mal));
+    const norm = logs.length - mal;
+    document.getElementById('statTotal').textContent    = fmt(logs.length);
+    document.getElementById('statMalicious').textContent = fmt(mal);
+    document.getElementById('statAlerts').textContent   = fmt(mal);
 
     // Update donut chart
-    donutChart.data.datasets[0].data=[newTotal-newMal,newMal];
+    donutChart.data.datasets[0].data=[norm,mal];
     donutChart.update();
 
     // Update protocol chart
@@ -243,11 +232,11 @@ async function pollDashboard() {
     // Update trend chart
     const last=logs.slice(0,20).reverse();
     trendLabels.length=0; trendNormal.length=0; trendBad.length=0;
-    let n=0,mm=0;
+    let n=0,m=0;
     last.forEach(l=>{
       trendLabels.push(l.captured_at?l.captured_at.split(' ')[1]:'');
-      if(l.prediction==='MALICIOUS') mm++; else n++;
-      trendNormal.push(n); trendBad.push(mm);
+      if(l.prediction==='MALICIOUS') m++; else n++;
+      trendNormal.push(n); trendBad.push(m);
     });
     trendChart.update();
 
