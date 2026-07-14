@@ -185,39 +185,50 @@ async function processQueue(){
   setTimeout(processQueue, 1000);
 }
 
-// ── Browser-side counters (single source of truth for stats) ──
-// These only ever increase from WebSocket packets, so the numbers
-// never jump between different Vercel server instances.
-let countTotal = 0;
-let countMal   = 0;
-let countAlert = 0;
-
 // ── WebSocket — instant updates on new packet ─────
 socket.on('new_packet', data => {
   const isMal = data.prediction==='MALICIOUS'||data.label==='MALICIOUS';
-
-  // Count in the browser only — never overwritten by polling
-  countTotal += 1;
-  if(isMal){ countMal += 1; countAlert += 1; }
-
-  document.getElementById('statTotal').textContent    = fmt(countTotal);
-  document.getElementById('statMalicious').textContent = fmt(countMal);
-  document.getElementById('statAlerts').textContent   = fmt(countAlert);
-
-  // Update Traffic Distribution donut live
-  donutChart.data.datasets[0].data=[countTotal-countMal, countMal];
+  // Update stat counters
+  const t=document.getElementById('statTotal');
+  const m=document.getElementById('statMalicious');
+  const a=document.getElementById('statAlerts');
+  const total=(parseInt(t.textContent.replace(/,/g,''))||0)+1;
+  const mal=(parseInt(m.textContent.replace(/,/g,''))||0)+(isMal?1:0);
+  const norm=total-mal;
+  t.textContent=fmt(total);
+  m.textContent=fmt(mal);
+  if(isMal) a.textContent=fmt((parseInt(a.textContent.replace(/,/g,''))||0)+1);
+  // Update donut live
+  donutChart.data.datasets[0].data=[norm,mal];
   donutChart.update();
-
   // Update map
   addMapMarker(data.src_ip,data.dst_ip,isMal);
 });
 
-// ── Polling every 5s — updates charts + table + map ONLY ──
-// (Stats counters are intentionally NOT touched here to avoid jumping.)
+// ── Polling every 5s — updates charts + table + stats
+// Uses Math.max so stat numbers never jump DOWN between server instances.
 async function pollDashboard() {
   try {
     const logs = await fetch('/api/logs').then(r=>r.json());
     if(!logs.length) return;
+
+    // Stats from logs, but never go lower than what's already shown
+    const mal  = logs.filter(l=>l.prediction==='MALICIOUS').length;
+    const t=document.getElementById('statTotal');
+    const m=document.getElementById('statMalicious');
+    const a=document.getElementById('statAlerts');
+    const curTotal=parseInt(t.textContent.replace(/,/g,''))||0;
+    const curMal=parseInt(m.textContent.replace(/,/g,''))||0;
+    const curAlert=parseInt(a.textContent.replace(/,/g,''))||0;
+    const newTotal=Math.max(curTotal, logs.length);
+    const newMal=Math.max(curMal, mal);
+    t.textContent=fmt(newTotal);
+    m.textContent=fmt(newMal);
+    a.textContent=fmt(Math.max(curAlert, mal));
+
+    // Update donut chart
+    donutChart.data.datasets[0].data=[newTotal-newMal,newMal];
+    donutChart.update();
 
     // Update protocol chart
     const c={tcp:0,udp:0,icmp:0,other:0};
@@ -232,11 +243,11 @@ async function pollDashboard() {
     // Update trend chart
     const last=logs.slice(0,20).reverse();
     trendLabels.length=0; trendNormal.length=0; trendBad.length=0;
-    let n=0,m=0;
+    let n=0,mm=0;
     last.forEach(l=>{
       trendLabels.push(l.captured_at?l.captured_at.split(' ')[1]:'');
-      if(l.prediction==='MALICIOUS') m++; else n++;
-      trendNormal.push(n); trendBad.push(m);
+      if(l.prediction==='MALICIOUS') mm++; else n++;
+      trendNormal.push(n); trendBad.push(mm);
     });
     trendChart.update();
 
